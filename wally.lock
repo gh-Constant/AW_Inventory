@@ -3,6 +3,11 @@
 registry = "test"
 
 [[package]]
+name = "2jammers/profilestore"
+version = "0.1.0"
+dependencies = []
+
+[[package]]
 name = "bubshurb/zoneplus"
 version = "1.1.1"
 dependencies = []
@@ -10,7 +15,7 @@ dependencies = []
 [[package]]
 name = "const/ar-framework"
 version = "0.1.0"
-dependencies = [["ComplexRegions", "vocksel/complex-regions@0.1.2"], ["Signal", "sleitnick/signal@2.0.1"], ["cmdr", "evaera/cmdr@1.12.0"], ["future", "red-blox/future@1.0.1"], ["zoneplus", "bubshurb/zoneplus@1.1.1"]]
+dependencies = [["ComplexRegions", "vocksel/complex-regions@0.1.2"], ["Signal", "sleitnick/signal@2.0.1"], ["cmdr", "evaera/cmdr@1.12.0"], ["future", "red-blox/future@1.0.1"], ["profilestore", "2jammers/profilestore@0.1.0"], ["zoneplus", "bubshurb/zoneplus@1.1.1"]]
 
 [[package]]
 name = "evaera/cmdr"

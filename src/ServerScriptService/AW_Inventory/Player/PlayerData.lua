@@ -1,11 +1,10 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local ProfileStore = require(ReplicatedStorage.AW_Fishing.ExternalLibs.ProfileStore)
+local Package = ReplicatedStorage.Packages
+local ProfileStore = require(Package.profilestore)
 
 -- Define the profile template
 local PROFILE_TEMPLATE = {
-	FishInventory = {},
-	playerRodEquipped = "Basic Rod", -- Add playerRodEquipped to the template
 }
 
 local PlayerStore = ProfileStore.New("PlayerStore3", PROFILE_TEMPLATE)
@@ -58,48 +57,6 @@ function PlayerData.CleanupPlayer(player)
 	end
 end
 
-function PlayerData.GetEquippedRod(player)
-	local profile = Profiles[player]
-	return profile and profile.Data.playerRodEquipped or nil
-end
-
-function PlayerData.SetEquippedRod(player, rodName)
-	local profile = Profiles[player]
-	if profile then
-		profile.Data.playerRodEquipped = rodName
-		profile:Save()
-	end
-end
-function PlayerData.AddFishToInventory(player, fishName, fishWeight)
-	local profile = Profiles[player]
-	if profile then
-		if not profile.Data.FishInventory[fishName] then
-			profile.Data.FishInventory[fishName] = {}
-		end
-		table.insert(profile.Data.FishInventory[fishName], fishWeight)
-		profile:Save()
-	end
-end
-
-function PlayerData.GetFishInventory(player)
-	local profile = Profiles[player]
-	return profile and profile.Data.FishInventory or {}
-end
-
-function PlayerData.RemoveFishFromInventory(player, fishName, index)
-	local profile = Profiles[player]
-	if profile and profile.Data.FishInventory[fishName] then
-		if index then
-			table.remove(profile.Data.FishInventory[fishName], index)
-			if #profile.Data.FishInventory[fishName] == 0 then
-				profile.Data.FishInventory[fishName] = nil
-			end
-		else
-			profile.Data.FishInventory[fishName] = nil
-		end
-		profile:Save()
-	end
-end
 
 -- Connect player events
 Players.PlayerAdded:Connect(function(player)
