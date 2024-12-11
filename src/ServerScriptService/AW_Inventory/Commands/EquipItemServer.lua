@@ -1,4 +1,4 @@
-local PlayerObject = require(script.Parent.Parent.PlayerObject)
+local PlayerObject = require(script.Parent.Parent.Player.PlayerObject)
 
 return function(context, player, itemId, slotId)
     local playerObj = PlayerObject.GetPlayerObject(player)
