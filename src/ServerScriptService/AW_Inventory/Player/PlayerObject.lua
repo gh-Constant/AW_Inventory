@@ -1,33 +1,3 @@
---[=[
-    @class PlayerObject
-    A wrapper class for player-related operations, particularly inventory management.
-
-    Example usage:
-    ```lua
-    local PlayerObject = require(path.to.PlayerObject)
-    
-    -- Get player object
-    local playerObj = PlayerObject.GetPlayerObject(player)
-    
-    -- Inventory operations
-    playerObj:addItemToInventory("Sword", 1, { durability = 100 })
-    playerObj:removeItemFromInventory("Coins", 50)
-    
-    -- Equipment operations
-    playerObj:equipItem("Sword", 1)
-    playerObj:unequipItem(1)
-    
-    -- Inventory queries
-    local inventory = playerObj:getInventory()
-    local hasItem = playerObj:hasItem("Sword")
-    local itemCount = playerObj:getItemCount("Coins")
-    local equippedItem = playerObj:getEquippedItem(1)
-    ```
-
-    @interface PlayerObject
-    .player Player -- The associated player instance
-    .PlayerData any -- The PlayerData module instance
-]=]
 
 local Players = game:GetService("Players")
 local PlayerData = require(script.Parent.PlayerData)

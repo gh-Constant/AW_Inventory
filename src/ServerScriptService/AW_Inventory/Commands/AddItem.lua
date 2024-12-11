@@ -19,6 +19,12 @@ return {
             Name = "quantity";
             Description = "Amount to give";
             Default = 1;
+        },
+        {
+            Type = "table";
+            Name = "itemData";
+            Description = "Additional data for the item";
+            Default = {};
         }
     };
 } 
