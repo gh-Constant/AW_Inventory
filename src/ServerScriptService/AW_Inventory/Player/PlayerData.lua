@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Package = ReplicatedStorage.Packages
 local ProfileStore = require(Package.profilestore)
 local Log = require(Package.log)
+local SlotHandler = require(ReplicatedStorage.AW_Inventory.Modules.SlotHandler)
 
 -- Initialize logger
 local logger = Log.new()
@@ -254,6 +255,8 @@ function PlayerData.SetupPlayer(player: Player)
 		logger:AtError():Log("Failed to load inventory profile for {}", player.Name)
 		player:Kick("Inventory profile load fail - Please rejoin")
 	end
+
+
 end
 
 --[=[
@@ -269,10 +272,20 @@ function PlayerData.CleanupPlayer(player: Player)
 	end
 end
 
+--[=[
+    @private
+    Updates the player's inventory.
+    @param player Player -- The player to update
+]=]
+function PlayerData.UpdatePlayerInventory(player: Player)
+	SlotHandler.SlotHandler(player)
+end
+
 -- Connect player events
 Players.PlayerAdded:Connect(function(player: Player)
 	if not Profiles[player] then
 		PlayerData.SetupPlayer(player)
+		PlayerData.UpdatePlayerInventory(player)
 	end
 end)
 
