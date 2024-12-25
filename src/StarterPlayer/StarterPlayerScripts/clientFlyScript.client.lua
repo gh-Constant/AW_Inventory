@@ -38,49 +38,57 @@ local cameraConfig = {
 }
 
 -- Animation IDs
-local FLYING_ANIMATION_ID = "rbxassetid://84379061438490" -- Replace with your animation ID
-local IDLE_ANIMATION_ID = "rbxassetid://81979718118680" -- Replace with your animation ID
+local FLYING_ANIMATION_ID = "84379061438490" -- Replace with your animation ID
+local IDLE_ANIMATION_ID = "81979718118680" -- Replace with your animation ID
 
 -- Near the top with other variables
 local Animator = humanoid:WaitForChild("Animator")
-local defaultAnimations = {}
 
--- Store default animations when the script starts
-for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do
-    table.insert(defaultAnimations, track)
-end
+-- Preloaded animation tracks
+local flyingTrack
+local idleTrack
 
 -- Handle animations
+local function loadAnimation(animationId)
+    local animation = Instance.new("Animation")
+    animation.AnimationId = "rbxassetid://" .. animationId
+    return Animator:LoadAnimation(animation)
+end
+
+-- Preload animations
+flyingTrack = loadAnimation(FLYING_ANIMATION_ID)
+idleTrack = loadAnimation(IDLE_ANIMATION_ID)
+
 local function playAnimation(animationId)
-    -- Stop all default animations
+    -- Stop all currently playing animations
     for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do
         track:Stop()
     end
     
     if currentAnimation then
         currentAnimation:Stop()
-        currentAnimation:Destroy()
-        currentAnimation = nil
     end
     
-    local animation = Instance.new("Animation")
-    animation.AnimationId = animationId
-    currentAnimation = humanoid:LoadAnimation(animation)
+    -- Play the appropriate preloaded animation
+    if animationId == FLYING_ANIMATION_ID then
+        currentAnimation = flyingTrack
+    else
+        currentAnimation = idleTrack
+    end
+    
     currentAnimation:Play()
 end
 
--- Add this function to restore default animations
+-- Simplify restore function to just stop flying animation
 local function restoreDefaultAnimations()
+    -- Stop flying animation if it exists
     if currentAnimation then
         currentAnimation:Stop()
-        currentAnimation:Destroy()
         currentAnimation = nil
     end
     
-    -- Resume default animations
-    for _, track in ipairs(defaultAnimations) do
-        track:Play()
-    end
+    -- Let the Humanoid's default animations resume naturally
+    -- No need to manually restore them
 end
 
 -- Smooth camera movement
