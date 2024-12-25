@@ -189,6 +189,8 @@ UserInputService.InputBegan:Connect(function(input, processed)
             isFlying = true
             StartFlyingRemote:FireServer()
             startMouseControl()
+            -- Play idle animation immediately when entering fly mode
+            playAnimation(IDLE_ANIMATION_ID)
             RunService:BindToRenderStep("FlyingUpdate", Enum.RenderPriority.Character.Value, function(deltaTime)
                 updateMovement(deltaTime)
                 updateCamera(deltaTime)
