@@ -60,13 +60,19 @@ flyingTrack = loadAnimation(FLYING_ANIMATION_ID)
 idleTrack = loadAnimation(IDLE_ANIMATION_ID)
 
 local function playAnimation(animationId)
-    -- Stop all currently playing animations
-    for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do
-        track:Stop()
+    -- Stop ALL animations, including walk animation
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    if humanoid then
+        local animator = humanoid:FindFirstChild("Animator")
+        if animator then
+            for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                track:Stop(0) -- The 0 means stop immediately
+            end
+        end
     end
     
     if currentAnimation then
-        currentAnimation:Stop()
+        currentAnimation:Stop(0)
     end
     
     -- Play the appropriate preloaded animation
@@ -81,15 +87,23 @@ end
 
 -- Simplify restore function to just stop flying animation
 local function restoreDefaultAnimations()
-    -- Stop flying animation if it exists
+    -- Stop flying animations immediately
     if currentAnimation then
-        currentAnimation:Stop()
+        currentAnimation:Stop(0)
         currentAnimation = nil
     end
     
-    -- Let the Humanoid's default animations resume naturally
-    -- No need to manually restore them
+    -- Make sure Humanoid.PlatformStand is false to allow normal walking
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.PlatformStand = false
+    end
 end
+
+-- Add these variables near the top with other flying state variables
+local turnResistance = 0.8 -- Controls how quickly the character can turn (0-1, higher = more resistance)
+local currentRotation = CFrame.new()
+local targetRotation = CFrame.new()
 
 -- Smooth camera movement
 local function updateCamera(deltaTime)
@@ -131,11 +145,19 @@ local function updateCamera(deltaTime)
         cameraConfig.smoothness
     )
 
-    -- Update character rotation to match camera direction
+    -- Update character rotation with resistance
     local flatForward = (humanoidRootPart.Position - camera.CFrame.Position) * Vector3.new(1, 0, 1)
     if flatForward.Magnitude > 0.1 then
-        local targetCF = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + flatForward)
-        humanoidRootPart.CFrame = humanoidRootPart.CFrame:Lerp(targetCF, 0.1)
+        targetRotation = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + flatForward)
+        -- Apply banking effect when turning
+        local rightVector = humanoidRootPart.CFrame.RightVector
+        local turnAmount = rightVector:Dot(flatForward.Unit)
+        local bankAngle = math.rad(turnAmount * 30) -- Max 30 degree bank
+        targetRotation *= CFrame.Angles(0, 0, -bankAngle)
+        
+        -- Smoothly interpolate to target rotation
+        currentRotation = currentRotation:Lerp(targetRotation, 1 - turnResistance)
+        humanoidRootPart.CFrame = CFrame.new(humanoidRootPart.Position) * currentRotation.Rotation
     end
 end
 
@@ -148,7 +170,8 @@ local function updateMovement(deltaTime)
     
     -- Only use W for forward movement
     if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-        moveDirection = camera.CFrame.LookVector
+        -- Use the current rotation instead of camera direction for more realistic movement
+        moveDirection = currentRotation.LookVector
         isMoving = true
     end
     
