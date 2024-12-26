@@ -22,19 +22,20 @@ local currentAnimation = nil
 local currentCameraTween = nil
 local targetCameraOffset = Vector3.new(0, 2, 10)
 local currentSpeed = 0
-local maxSpeed = 100
+local maxSpeed = 50
 local acceleration = 2
 local deceleration = 1
 
 -- Camera settings
 local cameraConfig = {
-    distance = 10,
-    height = 2,
-    smoothness = 0.1,
-    minY = -70, -- Minimum vertical angle in degrees
-    maxY = 70,  -- Maximum vertical angle in degrees
-    currentX = 0, -- Current horizontal rotation
-    currentY = 0  -- Current vertical rotation
+    distance = 15,
+    defaultHeight = 4,
+    forwardHeight = 4,
+    smoothness = 0.3,
+    minY = -70,
+    maxY = 70,
+    currentX = 0,
+    currentY = 0
 }
 
 -- Animation IDs
@@ -110,6 +111,10 @@ local currentCameraRotation = CFrame.new()
 local targetCameraRotation = CFrame.new()
 local cameraResistance = 0.85 -- Controls how quickly the camera follows (0-1, higher = more resistance)
 
+-- Add these variables for camera movement
+local targetCameraY = cameraConfig.defaultHeight
+local cameraTiltAmount = 8 -- Reduced from 15 to 8 degrees of tilt for sideways movement
+
 -- Smooth camera movement
 local function updateCamera(deltaTime)
     if not isFlying then return end
@@ -119,6 +124,29 @@ local function updateCamera(deltaTime)
     
     local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
     if not humanoidRootPart then return end
+
+    -- Get movement direction from character's rotation
+    local characterLook = humanoidRootPart.CFrame.LookVector
+    local cameraLook = currentCameraRotation.LookVector
+    
+    -- Calculate dot products to determine movement direction
+    local forwardDot = characterLook:Dot(cameraLook)
+    local rightDot = characterLook:Dot(currentCameraRotation.RightVector)
+    
+    -- Determine movement type based on character's facing direction
+    local isMovingForward = forwardDot > 0.7
+    local isMovingLeft = rightDot < -0.25
+    local isMovingRight = rightDot > 0.25
+    
+    -- Smoothly adjust camera height when moving forward
+    if isMovingForward then
+        targetCameraY = cameraConfig.forwardHeight
+    else
+        targetCameraY = cameraConfig.defaultHeight
+    end
+    
+    cameraConfig.height = cameraConfig.height or cameraConfig.defaultHeight
+    cameraConfig.height = cameraConfig.height + (targetCameraY - cameraConfig.height) * 0.1
 
     -- Update camera angles based on mouse movement with resistance
     local delta = UserInputService:GetMouseDelta()
@@ -132,6 +160,14 @@ local function updateCamera(deltaTime)
         cameraConfig.maxY
     )
 
+    -- Add automatic camera tilt for sideways movement
+    local sideTilt = 0
+    if isMovingLeft then
+        sideTilt = cameraTiltAmount
+    elseif isMovingRight then
+        sideTilt = -cameraTiltAmount
+    end
+
     -- Calculate target camera position using spherical coordinates
     local angle = math.rad(cameraConfig.currentX)
     local height = math.rad(cameraConfig.currentY)
@@ -140,11 +176,12 @@ local function updateCamera(deltaTime)
         math.sin(angle) * math.cos(height),
         math.sin(height),
         math.cos(angle) * math.cos(height)
-    ) * cameraConfig.distance
+    ) * (isMovingForward and cameraConfig.distance * 0.7 or cameraConfig.distance)
 
-    -- Calculate target camera CFrame
+    -- Calculate target camera CFrame with tilt
     local targetPosition = humanoidRootPart.Position - offset + Vector3.new(0, cameraConfig.height, 0)
-    targetCameraRotation = CFrame.new(targetPosition, humanoidRootPart.Position)
+    targetCameraRotation = CFrame.new(targetPosition, humanoidRootPart.Position) 
+        * CFrame.Angles(0, 0, math.rad(sideTilt))
     
     -- Apply camera resistance
     currentCameraRotation = currentCameraRotation:Lerp(targetCameraRotation, 1 - cameraResistance)
@@ -173,11 +210,15 @@ local function updateMovement(deltaTime)
     local moveDirection = Vector3.new(0, 0, 0)
     local isMoving = false
     
-    -- Only use W for forward movement
+    -- Movement using camera direction
     if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-        -- Use the current rotation instead of camera direction for more realistic movement
-        moveDirection = currentRotation.LookVector
+        moveDirection = camera.CFrame.LookVector
         isMoving = true
+    end
+    
+    -- Normalize the direction if we're moving
+    if moveDirection.Magnitude > 0 then
+        moveDirection = moveDirection.Unit
     end
     
     -- Smooth acceleration/deceleration
@@ -189,7 +230,7 @@ local function updateMovement(deltaTime)
     
     -- Apply movement
     if currentSpeed > 0 then
-        moveDirection = moveDirection.Unit * currentSpeed
+        moveDirection = moveDirection * currentSpeed
         
         -- Send movement data to server
         UpdateMovementRemote:FireServer({
