@@ -31,7 +31,7 @@ function ServerFlyingModule.new(player)
     self.Player = player
     self.IsFlying = false
     self.IsMoving = false
-    self.FlySpeed = 100
+    self.FlySpeed = 65
     self.MinGroundHeight = 5
     self.Character = player.Character or player.CharacterAdded:Wait()
     self.HumanoidRootPart = self.Character:WaitForChild("HumanoidRootPart")
@@ -44,10 +44,12 @@ end
 
 function ServerFlyingModule:SetupTrails()
     local limbAttachments = {
-        {limb = "LeftUpperArm", position = Vector3.new(0, -0.5, 0)},
-        {limb = "RightUpperArm", position = Vector3.new(0, -0.5, 0)},
-        {limb = "LeftUpperLeg", position = Vector3.new(0, 0.5, 0)},
-        {limb = "RightUpperLeg", position = Vector3.new(0, 0.5, 0)}
+        -- Upper Arms instead of hands
+        {limb = "LeftUpperArm", startOffset = Vector3.new(0, 0.5, 0), endOffset = Vector3.new(0, -0.5, 0)},
+        {limb = "RightUpperArm", startOffset = Vector3.new(0, 0.5, 0), endOffset = Vector3.new(0, -0.5, 0)},
+        -- Legs
+        {limb = "LeftFoot", startOffset = Vector3.new(0, 0.5, 0), endOffset = Vector3.new(0, -0.2, 0)},
+        {limb = "RightFoot", startOffset = Vector3.new(0, 0.5, 0), endOffset = Vector3.new(0, -0.2, 0)}
     }
 
     for _, attachmentData in ipairs(limbAttachments) do
@@ -55,31 +57,48 @@ function ServerFlyingModule:SetupTrails()
         if limb then
             -- Create start attachment
             local startAttachment = Instance.new("Attachment")
-            startAttachment.Position = attachmentData.position
+            startAttachment.Position = attachmentData.startOffset
             startAttachment.Name = "TrailAttachment0"
             startAttachment.Parent = limb
 
             -- Create end attachment
             local endAttachment = Instance.new("Attachment")
-            endAttachment.Position = attachmentData.position + Vector3.new(0, 0.5, 0)
+            endAttachment.Position = attachmentData.endOffset
             endAttachment.Name = "TrailAttachment1"
             endAttachment.Parent = limb
 
-            -- Create trail
+            -- Create trail with updated properties
             local trail = Instance.new("Trail")
             trail.Attachment0 = startAttachment
             trail.Attachment1 = endAttachment
-            trail.Lifetime = 0.5
-            trail.MinLength = 0.1
-            trail.MaxLength = 2
+            trail.Lifetime = 0.8  -- Increased lifetime for longer trails
+            trail.MinLength = 0.02  -- Smaller min length
+            trail.MaxLength = 4   -- Increased max length
             trail.Enabled = false
-            trail.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
-            trail.Transparency = NumberSequence.new({
-                NumberSequenceKeypoint.new(0, 0),
-                NumberSequenceKeypoint.new(1, 1)
-            })
-            trail.Parent = limb
+            trail.FaceCamera = true
             
+            -- Pure white color for cleaner look
+            trail.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+            })
+            
+            -- More gradual fade out
+            trail.Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0),    -- Fully visible at start
+                NumberSequenceKeypoint.new(0.5, 0.2), -- Slight fade at middle
+                NumberSequenceKeypoint.new(0.8, 0.5), -- More fade near end
+                NumberSequenceKeypoint.new(1, 1)     -- Fully transparent at end
+            })
+            
+            -- Thinner trails
+            trail.WidthScale = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0.3),   -- Start thinner
+                NumberSequenceKeypoint.new(0.8, 0.1), -- Get even thinner
+                NumberSequenceKeypoint.new(1, 0)      -- Fade to nothing
+            })
+            
+            trail.Parent = limb
             table.insert(self.Trails, trail)
         end
     end

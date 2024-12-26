@@ -22,16 +22,22 @@ local currentAnimation = nil
 local currentCameraTween = nil
 local targetCameraOffset = Vector3.new(0, 2, 10)
 local currentSpeed = 0
-local maxSpeed = 50
-local acceleration = 2
-local deceleration = 1
+local maxSpeed = 25
+local acceleration = 1
+local deceleration = 0.5
+local turnResistance = 0.9
+local currentRotation = CFrame.new()
+local targetRotation = CFrame.new()
+local currentCameraRotation = CFrame.new()
+local targetCameraRotation = CFrame.new()
+local cameraResistance = 0.92
 
 -- Camera settings
 local cameraConfig = {
     distance = 15,
     defaultHeight = 4,
     forwardHeight = 4,
-    smoothness = 0.3,
+    smoothness = 0.15,
     minY = -70,
     maxY = 70,
     currentX = 0,
@@ -101,17 +107,7 @@ local function restoreDefaultAnimations()
     end
 end
 
--- Add these variables near the top with other flying state variables
-local turnResistance = 0.8 -- Controls how quickly the character can turn (0-1, higher = more resistance)
-local currentRotation = CFrame.new()
-local targetRotation = CFrame.new()
-
 -- Add these camera variables near the top with other camera settings
-local currentCameraRotation = CFrame.new()
-local targetCameraRotation = CFrame.new()
-local cameraResistance = 0.85 -- Controls how quickly the camera follows (0-1, higher = more resistance)
-
--- Add these variables for camera movement
 local targetCameraY = cameraConfig.defaultHeight
 local cameraTiltAmount = 8 -- Reduced from 15 to 8 degrees of tilt for sideways movement
 
@@ -148,9 +144,9 @@ local function updateCamera(deltaTime)
     cameraConfig.height = cameraConfig.height or cameraConfig.defaultHeight
     cameraConfig.height = cameraConfig.height + (targetCameraY - cameraConfig.height) * 0.1
 
-    -- Update camera angles based on mouse movement with resistance
+    -- Update camera angles based on mouse movement with reduced sensitivity
     local delta = UserInputService:GetMouseDelta()
-    local sensitivity = 0.5
+    local sensitivity = 0.25
 
     -- Update target angles
     cameraConfig.currentX = cameraConfig.currentX - delta.X * sensitivity
@@ -187,20 +183,28 @@ local function updateCamera(deltaTime)
     currentCameraRotation = currentCameraRotation:Lerp(targetCameraRotation, 1 - cameraResistance)
     camera.CFrame = currentCameraRotation
 
-    -- Update character rotation with resistance
-    local flatForward = (humanoidRootPart.Position - currentCameraRotation.Position) * Vector3.new(1, 0, 1)
-    if flatForward.Magnitude > 0.1 then
-        targetRotation = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + flatForward)
+    -- Update character rotation based on movement
+    if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+        -- Align with camera direction when moving forward
+        local lookVector = camera.CFrame.LookVector
+        targetRotation = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + lookVector)
+        
         -- Apply banking effect when turning
         local rightVector = humanoidRootPart.CFrame.RightVector
-        local turnAmount = rightVector:Dot(flatForward.Unit)
+        local turnAmount = rightVector:Dot(lookVector * Vector3.new(1, 0, 1).Unit)
         local bankAngle = math.rad(turnAmount * 30) -- Max 30 degree bank
         targetRotation *= CFrame.Angles(0, 0, -bankAngle)
-        
-        -- Smoothly interpolate to target rotation
-        currentRotation = currentRotation:Lerp(targetRotation, 1 - turnResistance)
-        humanoidRootPart.CFrame = CFrame.new(humanoidRootPart.Position) * currentRotation.Rotation
+    else
+        -- When not pressing W, maintain horizontal orientation but stay level
+        local currentLook = humanoidRootPart.CFrame.LookVector * Vector3.new(1, 0, 1)
+        if currentLook.Magnitude > 0.1 then
+            targetRotation = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + currentLook)
+        end
     end
+    
+    -- Apply smooth rotation transition
+    currentRotation = currentRotation:Lerp(targetRotation, 1 - turnResistance)
+    humanoidRootPart.CFrame = CFrame.new(humanoidRootPart.Position) * currentRotation.Rotation
 end
 
 -- Smooth movement handling
@@ -230,6 +234,7 @@ local function updateMovement(deltaTime)
     
     -- Apply movement
     if currentSpeed > 0 then
+        -- Use the full movement vector including vertical component
         moveDirection = moveDirection * currentSpeed
         
         -- Send movement data to server
