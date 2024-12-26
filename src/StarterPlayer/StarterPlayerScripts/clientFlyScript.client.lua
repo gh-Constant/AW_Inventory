@@ -105,6 +105,11 @@ local turnResistance = 0.8 -- Controls how quickly the character can turn (0-1, 
 local currentRotation = CFrame.new()
 local targetRotation = CFrame.new()
 
+-- Add these camera variables near the top with other camera settings
+local currentCameraRotation = CFrame.new()
+local targetCameraRotation = CFrame.new()
+local cameraResistance = 0.85 -- Controls how quickly the camera follows (0-1, higher = more resistance)
+
 -- Smooth camera movement
 local function updateCamera(deltaTime)
     if not isFlying then return end
@@ -115,10 +120,11 @@ local function updateCamera(deltaTime)
     local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
     if not humanoidRootPart then return end
 
-    -- Update camera angles based on mouse movement
+    -- Update camera angles based on mouse movement with resistance
     local delta = UserInputService:GetMouseDelta()
     local sensitivity = 0.5
 
+    -- Update target angles
     cameraConfig.currentX = cameraConfig.currentX - delta.X * sensitivity
     cameraConfig.currentY = math.clamp(
         cameraConfig.currentY - delta.Y * sensitivity,
@@ -126,7 +132,7 @@ local function updateCamera(deltaTime)
         cameraConfig.maxY
     )
 
-    -- Calculate camera position using spherical coordinates
+    -- Calculate target camera position using spherical coordinates
     local angle = math.rad(cameraConfig.currentX)
     local height = math.rad(cameraConfig.currentY)
     
@@ -136,17 +142,16 @@ local function updateCamera(deltaTime)
         math.cos(angle) * math.cos(height)
     ) * cameraConfig.distance
 
-    -- Calculate target camera position
+    -- Calculate target camera CFrame
     local targetPosition = humanoidRootPart.Position - offset + Vector3.new(0, cameraConfig.height, 0)
+    targetCameraRotation = CFrame.new(targetPosition, humanoidRootPart.Position)
     
-    -- Smooth camera movement
-    camera.CFrame = camera.CFrame:Lerp(
-        CFrame.new(targetPosition, humanoidRootPart.Position),
-        cameraConfig.smoothness
-    )
+    -- Apply camera resistance
+    currentCameraRotation = currentCameraRotation:Lerp(targetCameraRotation, 1 - cameraResistance)
+    camera.CFrame = currentCameraRotation
 
     -- Update character rotation with resistance
-    local flatForward = (humanoidRootPart.Position - camera.CFrame.Position) * Vector3.new(1, 0, 1)
+    local flatForward = (humanoidRootPart.Position - currentCameraRotation.Position) * Vector3.new(1, 0, 1)
     if flatForward.Magnitude > 0.1 then
         targetRotation = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + flatForward)
         -- Apply banking effect when turning
