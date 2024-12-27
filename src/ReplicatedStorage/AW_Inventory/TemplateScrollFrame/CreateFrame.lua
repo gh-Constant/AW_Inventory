@@ -37,6 +37,7 @@ function CreateFrame.new()
 	ViewportTemplate.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	ViewportTemplate.BorderColor3 = Color3.fromRGB(27, 42, 53)
 	ViewportTemplate.Position = UDim2.new(0.0318571329, 0, 0.0440782718, 0)
+	ViewportTemplate.Size = UDim2.new(0.75, 0, 0.699050128, 0)
 
 	ImageTemplate.Name = "ImageTemplate"
 	ImageTemplate.Parent = Template
@@ -53,7 +54,7 @@ function CreateFrame.new()
 	TextLabel.Position = UDim2.new(0.587118804, 0, 0.560448468, 0)
 	TextLabel.Size = UDim2.new(0.381385237, 0, 0.423131406, 0)
 	TextLabel.Font = Enum.Font.SourceSans
-	TextLabel.Text = "100"
+	TextLabel.Text = "1"
 	TextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	TextLabel.TextScaled = true
 	TextLabel.TextSize = 14.000
@@ -92,12 +93,18 @@ function CreateFrame.new()
 	ItemValue.Parent = TemplateImage
 
 	-- Add Destroy script
-	local DestroyScript = script.Parent.Destroy:Clone()
-	DestroyScript.Parent = TemplateImage
+	local templateFolder = game.ReplicatedStorage.AW_Inventory.TemplateScrollFrame
+	if templateFolder then
+		if templateFolder:FindFirstChild("Destroy") then
+			local DestroyScript = templateFolder.Destroy:Clone()
+			DestroyScript.Parent = TemplateImage
+		end
 
-	-- Add Give script
-	local giveScript = script.Parent.Give:Clone()
-	giveScript.Parent = TemplateImage
+		if templateFolder:FindFirstChild("Give") then
+			local giveScript = templateFolder.Give:Clone()
+			giveScript.Parent = TemplateImage
+		end
+	end
 
 	return TemplateImage
 end

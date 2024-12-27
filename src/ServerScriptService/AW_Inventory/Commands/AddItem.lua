@@ -21,10 +21,10 @@ return {
             Default = 1;
         },
         {
-            Type = "table";
-            Name = "itemData";
-            Description = "Additional data for the item";
-            Default = {};
+            Type = "string";
+            Name = "propertiesJson";
+            Description = "Additional data for the item in JSON format (e.g. '{\"durability\":100}')",
+            Optional = true;
         }
     };
 } 

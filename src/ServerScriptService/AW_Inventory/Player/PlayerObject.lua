@@ -1,19 +1,11 @@
-
 local Players = game:GetService("Players")
 local PlayerData = require(script.Parent.PlayerData)
 
 local PlayerObject = {}
 PlayerObject.__index = PlayerObject
 
--- Table to store player objects
 local playerObjects = {}
 
---[=[
-    Creates a new PlayerObject instance.
-    @param player Player -- The player to create the object for
-    @return PlayerObject -- The created PlayerObject instance
-    @private
-]=]
 function PlayerObject.new(player: Player)
 	local self = setmetatable({}, PlayerObject)
 	self.player = player
@@ -21,107 +13,109 @@ function PlayerObject.new(player: Player)
 	return self
 end
 
---[=[
-    Gets the player instance associated with this PlayerObject.
-    @return Player -- The associated player
-]=]
 function PlayerObject:getPlayer(): Player
 	return self.player
 end
 
---[=[
-    Gets the inventory data for the player.
-    @return Inventory? -- The player's inventory data, or nil if not found
-]=]
 function PlayerObject:getInventory()
 	return self.PlayerData.GetInventory(self.player)
 end
 
 --[=[
-    Adds an item to the player's inventory.
-    @param itemId string -- The ID of the item to add
-    @param quantity number -- The quantity to add
-    @param itemData table? -- Optional additional data for the item
-    @return boolean -- Whether the operation was successful
+	Gets all items of a specific name in the inventory.
+	@param itemName string -- The item name to look for
+	@return {[string]: any} -- Table of matching items by their unique IDs
 ]=]
-function PlayerObject:addItemToInventory(itemId: string, quantity: number, itemData: { [string]: any }?): boolean
-	return self.PlayerData.AddItem(self.player, itemId, quantity, itemData)
+function PlayerObject:getItemsByName(itemName: string): {[string]: any}
+	return self.PlayerData.GetItemsByName(self.player, itemName)
+end
+
+
+--[=[
+	Gets the count of items with a specific name.
+	@param itemName string -- The item name to count
+	@return number -- The count of matching items
+]=]
+function PlayerObject:getItemCount(itemName: string): number
+	return self.PlayerData.GetItemCount(self.player, itemName)
 end
 
 --[=[
-    Removes an item from the player's inventory.
-    @param itemId string -- The ID of the item to remove
-    @param quantity number -- The quantity to remove
-    @return boolean -- Whether the operation was successful
+	Adds an item to the inventory.
+	@param itemName string -- The name of the item to add
+	@param itemData table? -- Optional additional data for the item
+	@return string? -- The unique ID of the added item, or nil if failed
 ]=]
-function PlayerObject:removeItemFromInventory(itemId: string, quantity: number): boolean
-	return self.PlayerData.RemoveItem(self.player, itemId, quantity)
+function PlayerObject:addItemToInventory(itemName: string, itemData: { [string]: any }?): string?
+	return self.PlayerData.AddItem(self.player, itemName, itemData)
 end
 
 --[=[
-    Equips an item to a specific slot.
-    @param itemId string -- The ID of the item to equip
-    @param slotId number -- The slot to equip the item to
-    @return boolean -- Whether the operation was successful
+	Removes a specific item instance from the inventory.
+	@param uniqueId string -- The unique ID of the item to remove
+	@return boolean -- Whether the operation was successful
 ]=]
-function PlayerObject:equipItem(itemId: string, slotId: number): boolean
-	return self.PlayerData.EquipItem(self.player, itemId, slotId)
+function PlayerObject:removeItemFromInventory(uniqueId: string): boolean
+	return self.PlayerData.RemoveItem(self.player, uniqueId)
 end
 
 --[=[
-    Unequips an item from a specific slot.
-    @param slotId number -- The slot to unequip
-    @return boolean -- Whether the operation was successful
+	Checks if the player has a specific item instance.
+	@param uniqueId string -- The unique ID of the item to check
+	@return boolean -- Whether the player has the item
 ]=]
-function PlayerObject:unequipItem(slotId: number): boolean
-	return self.PlayerData.UnequipItem(self.player, slotId)
-end
-
---[=[
-    Checks if the player has a specific item.
-    @param itemId string -- The ID of the item to check
-    @return boolean -- Whether the player has the item
-]=]
-function PlayerObject:hasItem(itemId: string): boolean
+function PlayerObject:hasItem(uniqueId: string): boolean
 	local inventory = self:getInventory()
-	return inventory and inventory.Items[itemId] ~= nil
+	return inventory and inventory.Items[uniqueId] ~= nil
 end
 
 --[=[
-    Gets the quantity of a specific item in the player's inventory.
-    @param itemId string -- The ID of the item to check
-    @return number -- The quantity of the item (0 if not found)
+	Checks if the player has any items with a specific name.
+	@param itemName string -- The item name to check
+	@return boolean -- Whether the player has any items of this name
 ]=]
-function PlayerObject:getItemCount(itemId: string): number
-	local inventory = self:getInventory()
-	return inventory and inventory.Items[itemId] and inventory.Items[itemId].quantity or 0
+function PlayerObject:hasItemOfName(itemName: string): boolean
+	return self:getItemCount(itemName) > 0
 end
 
 --[=[
-    Gets the item equipped in a specific slot.
-    @param slotId number -- The slot to check
-    @return string? -- The ID of the equipped item, or nil if nothing is equipped
+	Gets the item equipped in a specific slot.
+	@param slotId number -- The slot to check
+	@return string? -- The unique ID of the equipped item, or nil if nothing is equipped
 ]=]
 function PlayerObject:getEquippedItem(slotId: number): string?
 	local inventory = self:getInventory()
 	return inventory and inventory.Equipped[slotId]
 end
 
+
 --[=[
-    Gets a PlayerObject instance for a specific player.
-    @param player Player -- The player to get the object for
-    @return PlayerObject? -- The PlayerObject instance, or nil if not found
+	Equips an item to a specific slot.
+	@param uniqueId string -- The unique ID of the item to equip
+	@param slotId number -- The slot to equip the item to
+	@return boolean -- Whether the operation was successful
 ]=]
+function PlayerObject:equipItem(uniqueId: string, slotId: number): boolean
+	return self.PlayerData.EquipItem(self.player, uniqueId, slotId)
+end
+
+--[=[
+	Unequips an item from a specific slot.
+	@param slotId number -- The slot to unequip
+	@return boolean -- Whether the operation was successful
+]=]
+function PlayerObject:unequipItem(slotId: number): boolean
+	return self.PlayerData.UnequipItem(self.player, slotId)
+end
+
 function PlayerObject.GetPlayerObject(player: Player)
 	return playerObjects[player]
 end
 
--- Connect to PlayerAdded event to create a PlayerObject for each player
 Players.PlayerAdded:Connect(function(player)
 	playerObjects[player] = PlayerObject.new(player)
 end)
 
--- Handle PlayerRemoving to clean up
 Players.PlayerRemoving:Connect(function(player)
 	playerObjects[player] = nil
 end)

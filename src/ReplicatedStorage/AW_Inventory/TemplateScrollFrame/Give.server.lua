@@ -1,7 +1,10 @@
 local dt = false
 local SlotHandler = require(game.ReplicatedStorage.AW_Inventory.Modules.SlotHandler)
+local PlayerObject = require(game.ServerScriptService.AW_Inventory.Player.PlayerObject)
+local ItemModule = require(game.ServerScriptService.AW_Inventory.Items.ItemModule)
+
 local plr = script.Parent.Parent.Parent.Parent.Parent.Parent.Parent.Parent
-local Items = game.ReplicatedStorage.AW_Inventory.Items
+
 script.Parent.MouseButton1Click:Connect(function()
 	if dt == false then
 		dt = true
@@ -9,30 +12,27 @@ script.Parent.MouseButton1Click:Connect(function()
 		dt = false
 		print("too slow")
 	elseif dt == true then
-		local item = script.Parent.Parent.Item.Value
-		if plr.SlotFolder[item].Amount.Value <= 1 then
-			print(1)
-			plr.SlotFolder[item]:Destroy()
-			plr.Weight.Value -= Items[item].Weight
-			SlotHandler.SlotHandler(plr)
-            if game.ReplicatedStorage.AW_Inventory.Items[item].Tool:FindFirstChildOfClass("Tool") then  
-                local t = game.ReplicatedStorage.AW_Inventory.Items[item].Tool:FindFirstChildOfClass("Tool"):Clone()
-                t.Parent = plr.Backpack
-            else
-                print("no tool")
-            end
-		else
-			print(2)
-			plr.SlotFolder[item].Amount.Value -= 1
-			plr.Weight.Value -= Items[item].Weight
-			SlotHandler.SlotHandler(plr)
-            
-            if game.ReplicatedStorage.AW_Inventory.Items[item].Tool:FindFirstChildOfClass("Tool") then  
-                local t = game.ReplicatedStorage.AW_Inventory.Items[item].Tool:FindFirstChildOfClass("Tool"):Clone()
-                t.Parent = plr.Backpack
-            else
-                print("no tool")
-            end
+		local itemName = script.Parent.Parent.Item.Value
+		local playerObj = PlayerObject.GetPlayerObject(plr)
+		
+		if playerObj and playerObj:hasItemOfName(itemName) then
+			-- Get all items of this name and give the first one we find
+			local items = playerObj:getItemsByName(itemName)
+			for uniqueId, _ in pairs(items) do
+				playerObj:removeItemFromInventory(uniqueId)
+				SlotHandler.SlotHandler(plr)
+				
+				-- Handle tool giving
+				local tool = ItemModule.GetItemTool(itemName)
+				if tool then
+					local toolClone = tool:Clone()
+					toolClone.Parent = plr.Backpack
+				else
+					print("no tool")
+				end
+				
+				break -- Only give one item
+			end
 		end
 		dt = false
 	end
