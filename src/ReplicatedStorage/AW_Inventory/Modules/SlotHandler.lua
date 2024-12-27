@@ -3,11 +3,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Functions = {}
 local ItemsFolder = ReplicatedStorage.AW_Inventory.Items
 local SettingsModule = require(ReplicatedStorage.AW_Inventory.SettingsModule)
+local PlayerObjectModule = require(game.ServerScriptService.AW_Inventory.Player.PlayerObject)
+local CreateFrame = require(game.ReplicatedStorage.AW_Inventory.TemplateScrollFrame.CreateFrame)
 
 function Functions.SlotHandler(plr)
 	print("DEBUG: Starting SlotHandler for player:", plr.Name)
-
-    local PlayerObjectModule = require(game.ServerScriptService.AW_Inventory.Player.PlayerObject)
 
     local PlayerObject = PlayerObjectModule.GetPlayerObject(plr)
 
@@ -45,7 +45,7 @@ function Functions.SlotHandler(plr)
 			print("DEBUG: Creating frame for item:", itemType, "Amount:", amount)
 			
 			-- Clone template and set properties
-			local frametemplate = ReplicatedStorage.AW_Inventory.TemplateScrollFrame.TemplateImage:Clone()
+			local frametemplate = CreateFrame.new()
 			frametemplate.Parent = inventoryFrame
 			frametemplate.Name = nbr
 			frametemplate.LayoutOrder = nbr
