@@ -5,11 +5,34 @@ local ItemsFolder = ReplicatedStorage.AW_Inventory.Items
 local SettingsModule = require(ReplicatedStorage.AW_Inventory.SettingsModule)
 local PlayerObjectModule = require(game.ServerScriptService.AW_Inventory.Player.PlayerObject)
 local CreateFrame = require(game.ReplicatedStorage.AW_Inventory.TemplateScrollFrame.CreateFrame)
+
+-- Helper function to compare item data
+local function areItemsEqual(data1, data2)
+	if not data1 or not data2 then return false end
 	
+	-- Compare basic properties
+	if data1.name ~= data2.name then return false end
+	
+	-- Compare data tables
+	if not data1.data or not data2.data then
+		return not data1.data and not data2.data -- true if both are nil
+	end
+	
+	-- Compare all properties in data
+	for k, v in pairs(data1.data) do
+		if data2.data[k] ~= v then return false end
+	end
+	for k, v in pairs(data2.data) do
+		if data1.data[k] ~= v then return false end
+	end
+	
+	return true
+end
+
 function Functions.SlotHandler(plr)
 	print("DEBUG: Starting SlotHandler for player:", plr.Name)
 
-    local PlayerObject = PlayerObjectModule.GetPlayerObject(plr)
+	local PlayerObject = PlayerObjectModule.GetPlayerObject(plr)
 
 	print("DEBUG: PlayerData module loaded")
 	
@@ -34,9 +57,29 @@ function Functions.SlotHandler(plr)
 	end
 	print("DEBUG: Got inventory data:", inventory)
 	
-	-- Populate inventory slots
+	-- Group similar items
+	local groupedItems = {}
 	for itemId, itemData in pairs(inventory.Items) do
-		print("DEBUG: Processing item:", itemId, "Name:", itemData.name)
+		local found = false
+		for _, group in ipairs(groupedItems) do
+			if areItemsEqual(group.data, itemData) then
+				table.insert(group.ids, itemId)
+				found = true
+				break
+			end
+		end
+		if not found then
+			table.insert(groupedItems, {
+				data = itemData,
+				ids = {itemId}
+			})
+		end
+	end
+	
+	-- Create frames for grouped items
+	for _, group in ipairs(groupedItems) do
+		local itemData = group.data
+		print("DEBUG: Processing item group:", itemData.name, "#Items:", #group.ids)
 		
 		if ItemsFolder:FindFirstChild(itemData.name) then
 			local itemName = itemData.name
@@ -50,8 +93,8 @@ function Functions.SlotHandler(plr)
 			frametemplate.LayoutOrder = nbr
 			frametemplate.Item.Value = itemName
 			
-			-- Set amount text (now we show 1 since each item is unique)
-			frametemplate.Template.TextLabel.Text = "1"
+			-- Set amount text to show stack size
+			frametemplate.Template.TextLabel.Text = tostring(#group.ids)
 			
 			-- Set rarity color
 			local itemFolder = ItemsFolder[itemName]
@@ -91,7 +134,7 @@ function Functions.SlotHandler(plr)
 			end
 			
 			nbr = nbr + 1
-			print("DEBUG: Finished processing item:", itemName)
+			print("DEBUG: Finished processing item group:", itemName)
 		else
 			warn("DEBUG: Item not configured in ItemsFolder:", itemData.name)
 		end
