@@ -6,9 +6,21 @@ local ItemsFolder = game:GetService("ReplicatedStorage"):WaitForChild("AW_Invent
 local PlayerObjectModule = require(game.ServerScriptService.AW_Inventory.Player.PlayerObject)
 local CreateFrame = require(game.ReplicatedStorage.AW_Inventory.TemplateScrollFrame.CreateFrame)
 
+-- Helper function for debug prints
+local function debugPrint(message, ...)
+	if not SettingsModule.Debug.EnablePrints then return end
+	print(string.format(message, ...))
+end
+
+-- Helper function for debug warnings
+local function debugWarn(message, ...)
+	if not SettingsModule.Debug.EnablePrints then return end
+	warn(string.format(message, ...))
+end
+
 -- Helper function to print grid visualization
 local function printGridDebug(grid, maxY)
-	if not SettingsModule.Debug.ShowGridDebug then return end
+	if not SettingsModule.Debug.EnablePrints or not SettingsModule.Debug.ShowGridDebug then return end
 	
 	print("\nGrid Layout (X = taken, . = empty):")
 	print("   " .. string.rep("-", SettingsModule.MaxSlotsPerRow * 2 + 1))
@@ -176,7 +188,9 @@ local function calculateSlotPosition(frames)
 		local gridSize = data.gridSize
 		local placed = false
 		
-		print(string.format("\nPlacing item: %s (Size: %dx%d)", frame.Item.Value, gridSize.X, gridSize.Y))
+		if SettingsModule.Debug.ShowGridDebug then
+			debugPrint("\nPlacing item: %s (Size: %dx%d)", frame.Item.Value, gridSize.X, gridSize.Y)
+		end
 		
 		-- Try each Y position from top to bottom
 		for y = 0, maxY do
@@ -192,8 +206,10 @@ local function calculateSlotPosition(frames)
 						)
 					})
 					markSlotsOccupied(x, y, gridSize)
-					print(string.format("Placed at position: (%d, %d)", x, y))
-					printGridDebug(grid, maxY)
+					if SettingsModule.Debug.ShowGridDebug then
+						debugPrint("Placed at position: (%d, %d)", x, y)
+						printGridDebug(grid, maxY)
+					end
 					placed = true
 					break
 				end
@@ -214,28 +230,32 @@ local function calculateSlotPosition(frames)
 						)
 					})
 					markSlotsOccupied(x, y, gridSize)
-					print(string.format("Placed at new row position: (%d, %d)", x, y))
-					printGridDebug(grid, maxY)
+					if SettingsModule.Debug.ShowGridDebug then
+						debugPrint("Placed at new row position: (%d, %d)", x, y)
+						printGridDebug(grid, maxY)
+					end
 					break
 				end
 			end
 		end
 	end
 	
-	print("\nFinal grid layout:")
-	printGridDebug(grid, maxY)
+	if SettingsModule.Debug.ShowGridDebug then
+		debugPrint("\nFinal grid layout:")
+		printGridDebug(grid, maxY)
+	end
 	
 	return positions
 end
 
 function Functions.SlotHandler(plr)
 	if SettingsModule.Debug.ShowItemProcessing then
-		print("DEBUG: Starting SlotHandler for player:", plr.Name)
+			debugPrint("Starting SlotHandler for player: %s", plr.Name)
 	end
 
 	local PlayerObject = PlayerObjectModule.GetPlayerObject(plr)
 	if SettingsModule.Debug.ShowItemProcessing then
-		print("DEBUG: PlayerData module loaded")
+		debugPrint("PlayerData module loaded")
 	end
 	
 	local nbr = 1
@@ -249,7 +269,7 @@ function Functions.SlotHandler(plr)
 	local inventoryFrame = inventoryContainer:WaitForChild("Inventory")
 	
 	if SettingsModule.Debug.ShowItemProcessing then
-		print("DEBUG: Got inventory frame reference")
+		debugPrint("Got inventory frame reference")
 	end
 	
 	for _, b in pairs(inventoryFrame:GetChildren()) do
@@ -258,17 +278,17 @@ function Functions.SlotHandler(plr)
 		end
 	end
 	if SettingsModule.Debug.ShowItemProcessing then
-		print("DEBUG: Cleared existing inventory slots")
+		debugPrint("Cleared existing inventory slots")
 	end
 	
 	-- Get player's inventory data
 	local inventory = PlayerObject:getInventory()
 	if not inventory then 
-		warn("DEBUG: No inventory data found for player:", plr.Name)
+		debugWarn("No inventory data found for player: %s", plr.Name)
 		return 
 	end
 	if SettingsModule.Debug.ShowItemProcessing then
-		print("DEBUG: Got inventory data:", inventory)
+		debugPrint("Got inventory data: %s", tostring(inventory))
 	end
 	
 	if SettingsModule.ShowQuantity then
@@ -295,14 +315,14 @@ function Functions.SlotHandler(plr)
 		for _, group in ipairs(groupedItems) do
 			local itemData = group.data
 			if SettingsModule.Debug.ShowItemProcessing then
-				print("DEBUG: Processing item group:", itemData.name, "#Items:", #group.ids)
+				debugPrint("Processing item group: %s #Items: %d", itemData.name, #group.ids)
 			end
 			
 			if ItemsFolder:FindFirstChild(itemData.name) then
 				local itemName = itemData.name
 				
 				if SettingsModule.Debug.ShowItemProcessing then
-					print("DEBUG: Creating frame for item:", itemName)
+					debugPrint("Creating frame for item: %s", itemName)
 				end
 				
 				-- Clone template and set properties
@@ -333,10 +353,10 @@ function Functions.SlotHandler(plr)
 				table.insert(frames, frametemplate)
 				nbr = nbr + 1
 				if SettingsModule.Debug.ShowItemProcessing then
-					print("DEBUG: Finished processing item group:", itemName)
+					debugPrint("Finished processing item group: %s", itemName)
 				end
 			else
-				warn("DEBUG: Item not configured in ItemsFolder:", itemData.name)
+				debugWarn("Item not configured in ItemsFolder: %s", itemData.name)
 			end
 		end
 	else
@@ -344,12 +364,12 @@ function Functions.SlotHandler(plr)
 		for uniqueId, itemData in pairs(inventory.Items) do
 			local itemName = itemData.name
 			if SettingsModule.Debug.ShowItemProcessing then
-				print("DEBUG: Processing item:", itemName, "ID:", uniqueId)
+				debugPrint("Processing item: %s ID: %s", itemName, uniqueId)
 			end
 			
 			if ItemsFolder:FindFirstChild(itemName) then
 				if SettingsModule.Debug.ShowItemProcessing then
-					print("DEBUG: Creating frame for item:", itemName)
+					debugPrint("Creating frame for item: %s", itemName)
 				end
 				
 				-- Clone template and set properties
@@ -380,10 +400,10 @@ function Functions.SlotHandler(plr)
 				table.insert(frames, frametemplate)
 				nbr = nbr + 1
 				if SettingsModule.Debug.ShowItemProcessing then
-					print("DEBUG: Finished processing item:", itemName)
+					debugPrint("Finished processing item: %s", itemName)
 				end
 			else
-				warn("DEBUG: Item not configured in ItemsFolder:", itemName)
+				debugWarn("Item not configured in ItemsFolder: %s", itemName)
 			end
 		end
 	end
@@ -397,7 +417,7 @@ function Functions.SlotHandler(plr)
 	end
 	
 	if SettingsModule.Debug.ShowItemProcessing then
-		print("DEBUG: SlotHandler completed for player:", plr.Name)
+		debugPrint("SlotHandler completed for player: %s", plr.Name)
 	end
 end
 

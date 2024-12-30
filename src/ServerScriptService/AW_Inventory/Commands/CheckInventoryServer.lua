@@ -1,6 +1,7 @@
 local PlayerObject = require(script.Parent.Parent.Player.PlayerObject)
 local ItemModule = require(game.ReplicatedStorage.AW_Inventory.Modules.ItemModule)
 local SlotHandler = require(game.ReplicatedStorage.AW_Inventory.Modules.SlotHandler)
+local SettingsModule = require(game.ReplicatedStorage.AW_Inventory.SettingsModule)
 
 -- Helper function to format tables
 local function formatTable(tbl, indent)
@@ -29,6 +30,14 @@ return function(context, player)
         return "Inventory not found"
     end
 
+    -- Execute the slot handler functionality without prints
+    SlotHandler.SlotHandler(player)
+
+    -- If prints are disabled, return without output
+    if not SettingsModule.Debug.EnablePrints or not SettingsModule.Debug.Commands.CheckInventory.EnablePrints then
+        return
+    end
+
     local output = string.format("=== Inventory for %s ===\n", player.Name)
     
     -- List items with detailed information
@@ -38,28 +47,33 @@ return function(context, player)
         local itemInfo = ItemModule.GetItemData(itemData.name)
         local itemName = itemData.name
         
-        output ..= string.format("• %s\n", itemName)
-        output ..= string.format("  UniqueID: %s\n", uniqueId)
-        
-        -- Add additional item properties if they exist
-        if itemData.data then
-            output ..= "  Properties:\n"
-            for prop, value in pairs(itemData.data) do
-                output ..= string.format("    %s: %s\n", prop, tostring(value))
+        if SettingsModule.Debug.Commands.CheckInventory.DetailedPrints then
+            output ..= string.format("• %s\n", itemName)
+            output ..= string.format("  UniqueID: %s\n", uniqueId)
+            
+            -- Add additional item properties if they exist
+            if itemData.data then
+                output ..= "  Properties:\n"
+                for prop, value in pairs(itemData.data) do
+                    output ..= string.format("    %s: %s\n", prop, tostring(value))
+                end
             end
-        end
 
-        -- Add item info if available
-        if itemInfo then
-            if itemInfo.rarity then
-                output ..= string.format("  Rarity: %s\n", itemInfo.rarity)
+            -- Add item info if available
+            if itemInfo then
+                if itemInfo.rarity then
+                    output ..= string.format("  Rarity: %s\n", itemInfo.rarity)
+                end
+                if itemInfo.type then
+                    output ..= string.format("  Type: %s\n", itemInfo.type)
+                end
+                if itemInfo.description then
+                    output ..= string.format("  Description: %s\n", itemInfo.description)
+                end
             end
-            if itemInfo.type then
-                output ..= string.format("  Type: %s\n", itemInfo.type)
-            end
-            if itemInfo.description then
-                output ..= string.format("  Description: %s\n", itemInfo.description)
-            end
+        else
+            -- Simple output
+            output ..= string.format("• %s\n", itemName)
         end
     end
     
@@ -70,23 +84,30 @@ return function(context, player)
         local slotName = SlotHandler.GetSlotName(slotId)
         
         if itemData then
-            output ..= string.format("• Slot %d (%s): %s\n", 
-                slotId, 
-                slotName or "Unknown Slot", 
-                itemData.name
-            )
-            output ..= string.format("  UniqueID: %s\n", itemId)
+            if SettingsModule.Debug.Commands.CheckInventory.DetailedPrints then
+                output ..= string.format("• Slot %d (%s): %s\n", 
+                    slotId, 
+                    slotName or "Unknown Slot", 
+                    itemData.name
+                )
+                output ..= string.format("  UniqueID: %s\n", itemId)
+            else
+                output ..= string.format("• Slot %d (%s): %s\n", 
+                    slotId, 
+                    slotName or "Unknown Slot", 
+                    itemData.name
+                )
+            end
         end
     end
 
-    -- Add raw inventory data section
-    output ..= "\n🔧 Raw Inventory Data:\n"
-    output ..= "{\n"
-    output ..= formatTable(inventory, "  ")
-    output ..= "}"
-
-
-    SlotHandler.SlotHandler(player)
+    -- Add raw inventory data section only if detailed prints are enabled
+    if SettingsModule.Debug.Commands.CheckInventory.DetailedPrints then
+        output ..= "\n🔧 Raw Inventory Data:\n"
+        output ..= "{\n"
+        output ..= formatTable(inventory, "  ")
+        output ..= "}"
+    end
 
     return output
 end 

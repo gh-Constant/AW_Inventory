@@ -1,54 +1,85 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
--- Remote event for viewport updates
+local SettingsModule = require(ReplicatedStorage.AW_Inventory.SettingsModule)
 local ViewportRemote = ReplicatedStorage.AW_Inventory.Remotes.Viewport
-
--- Constants for viewport camera
-local CAMERA_FIELD_OF_VIEW = 45
-local ROTATION_SPEED = 1
-local CAMERA_DISTANCE_MULTIPLIER = 0.75
 
 -- Function to create and setup viewport camera
 local function setupViewportCamera()
     local camera = Instance.new("Camera")
-    camera.CameraType = Enum.CameraType.Scriptable
-    camera.FieldOfView = CAMERA_FIELD_OF_VIEW
+    camera.CameraType = SettingsModule.Viewport.Camera.Type
+    camera.FieldOfView = SettingsModule.Viewport.Camera.FieldOfView
     return camera
 end
 
 -- Function to calculate optimal camera distance
 local function calculateCameraDistance(boundingSize)
     local maxDimension = math.max(boundingSize.X, boundingSize.Y, boundingSize.Z)
-    local distance = (maxDimension / math.tan(math.rad(CAMERA_FIELD_OF_VIEW))) * CAMERA_DISTANCE_MULTIPLIER
+    local distance = (maxDimension / math.tan(math.rad(SettingsModule.Viewport.Camera.FieldOfView))) 
+        * SettingsModule.Viewport.Camera.DistanceMultiplier
     return (maxDimension/2) + distance
+end
+
+-- Function to get random position for item
+local function getRandomPosition()
+    local min = SettingsModule.Viewport.Model.RandomPosition.Min
+    local max = SettingsModule.Viewport.Model.RandomPosition.Max
+    return Vector3.new(
+        math.random(min, max),
+        math.random(min, max),
+        math.random(min, max)
+    )
+end
+
+-- Function to find and clone the view model
+local function getViewModel(itemFolder)
+    -- First try to find a direct Model in ViewModel folder
+    local viewModel = itemFolder:FindFirstChild(SettingsModule.Viewport.Model.ViewModelPath)
+    if viewModel then
+        local model = viewModel:FindFirstChildOfClass("Model")
+        if model then
+            return model:Clone()
+        end
+    end
+    
+    -- If no model found, try to find any Model in the item folder
+    local model = itemFolder:FindFirstChildOfClass("Model")
+    if model then
+        return model:Clone()
+    end
+    
+    return nil
 end
 
 -- Handle viewport updates
 ViewportRemote.OnClientEvent:Connect(function(viewportFrame, itemName)
     -- Validate inputs
-    if not viewportFrame or not itemName then return end
+    if not viewportFrame or not itemName then 
+        warn("Invalid viewport update parameters")
+        return 
+    end
+    
+    -- Get item folder
+    local itemFolder = ReplicatedStorage.AW_Inventory.Items:WaitForChild(itemName)
+    if not itemFolder then
+        warn("Item folder not found for:", itemName)
+        return
+    end
     
     -- Setup camera
     local viewportCamera = setupViewportCamera()
     viewportFrame.CurrentCamera = viewportCamera
     
-    -- Create random position for item
-    local viewportPosition = Vector3.new(
-        math.random(-5, 5),
-        math.random(-5, 5),
-        math.random(-5, 5)
-    )
+    -- Get random position and clone model
+    local viewportPosition = getRandomPosition()
+    local itemClone = getViewModel(itemFolder)
     
-    -- Clone and setup item
-    local itemTemplate = ReplicatedStorage.AW_Inventory.Items:WaitForChild(itemName).ViewModel:FindFirstChildOfClass("Model")
-
-    if not itemTemplate then
-        warn("Item template not found for: " .. itemName)
+    if not itemClone then
+        warn("No valid model found for item:", itemName)
         return
     end
-
-    local itemClone = itemTemplate:Clone()
+    
+    -- Setup model in viewport
     itemClone:SetPrimaryPartCFrame(CFrame.new(viewportPosition))
     itemClone.Parent = viewportFrame
     
@@ -66,13 +97,17 @@ ViewportRemote.OnClientEvent:Connect(function(viewportFrame, itemName)
         
         -- Calculate camera position
         local distance = calculateCameraDistance(boundingSize)
-        local cameraAngle = CFrame.Angles(math.rad(90), math.rad(rotation), 0)
+        local cameraAngle = CFrame.Angles(
+            math.rad(SettingsModule.Viewport.Camera.InitialAngle), 
+            math.rad(rotation), 
+            0
+        )
         local cameraOffset = Vector3.new(0, 0, distance)
         
         -- Update camera
         viewportCamera.CFrame = cameraAngle * CFrame.new(viewportPosition + cameraOffset, viewportPosition)
         
         -- Increment rotation
-        rotation = rotation + ROTATION_SPEED
+        rotation = rotation + SettingsModule.Viewport.Camera.RotationSpeed
     end)
 end)
