@@ -1,10 +1,98 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Functions = {}
-local ItemsFolder = ReplicatedStorage.AW_Inventory.Items
 local SettingsModule = require(ReplicatedStorage.AW_Inventory.SettingsModule)
+local ItemsFolder = game:GetService("ReplicatedStorage"):WaitForChild("AW_Inventory"):WaitForChild("Items")
 local PlayerObjectModule = require(game.ServerScriptService.AW_Inventory.Player.PlayerObject)
 local CreateFrame = require(game.ReplicatedStorage.AW_Inventory.TemplateScrollFrame.CreateFrame)
+
+-- Helper function to print grid visualization
+local function printGridDebug(grid, maxY)
+	if not SettingsModule.Debug.ShowGridDebug then return end
+	
+	print("\nGrid Layout (X = taken, . = empty):")
+	print("   " .. string.rep("-", SettingsModule.MaxSlotsPerRow * 2 + 1))
+	for y = 0, math.max(SettingsModule.Debug.MinDebugRows - 1, maxY) do
+		local row = string.format("%2d |", y)
+		for x = 0, SettingsModule.MaxSlotsPerRow - 1 do
+			row = row .. (grid[x][y] and " X" or " .")
+		end
+		row = row .. " |"
+		print(row)
+	end
+	print("   " .. string.rep("-", SettingsModule.MaxSlotsPerRow * 2 + 1))
+end
+
+-- Helper function to create frame name
+local function createFrameName(itemName, itemData, uniqueId)
+	local frameName = itemName
+	if itemData.data then
+		for key, value in pairs(itemData.data) do
+			frameName = frameName .. SettingsModule.FrameNameSeparator .. 
+					   tostring(key) .. SettingsModule.PropertyValueSeparator .. tostring(value)
+		end
+	end
+	return frameName .. SettingsModule.FrameNameSeparator .. uniqueId
+end
+
+-- Helper function to set frame gradients
+local function setFrameGradients(frame, rarity)
+	-- Create base gradient for BG
+	local baseGradient = SettingsModule.RarityGradient[rarity]:Clone()
+	baseGradient.Parent = frame.BG
+	
+	-- Create darker gradient for frame
+	local frameGradient = SettingsModule.RarityGradient[rarity]:Clone()
+	
+	-- Create new keypoints with darker colors
+	local newKeypoints = {}
+	for _, keypoint in ipairs(frameGradient.Color.Keypoints) do
+		local darkerColor = keypoint.Value:Lerp(Color3.new(0, 0, 0), SettingsModule.BGGradientDarkness)
+		local newKeypoint = ColorSequenceKeypoint.new(keypoint.Time, darkerColor)
+		table.insert(newKeypoints, newKeypoint)
+	end
+	
+	-- Apply new keypoints to the gradient
+	frameGradient.Color = ColorSequence.new(newKeypoints)
+	frameGradient.Parent = frame
+end
+
+-- Helper function to handle view type
+local function setViewType(frame, itemFolder, plr, itemName)
+	if not itemFolder:FindFirstChild("ViewType") then
+		warn("DEBUG: ViewType not found for item:", itemName)
+		return
+	end
+	
+	local viewType = itemFolder.ViewType.Value
+	if SettingsModule.Debug.ShowItemProcessing then
+		print("DEBUG: Item view type:", viewType)
+	end
+	
+	if viewType == SettingsModule.ViewTypes.VIEWPORT then
+		frame.BG.Main.ViewportTemplate.Visible = true
+		frame.BG.Main.ImageTemplate.Visible = false
+		
+		-- Fire viewport update to client
+		if SettingsModule.Debug.ShowItemProcessing then
+			print("DEBUG: Firing viewport update for:", itemName)
+		end
+		ReplicatedStorage.AW_Inventory.Remotes.Viewport:FireClient(
+			plr,
+			frame.BG.Main.ViewportTemplate,
+			tostring(itemName)
+		)
+	elseif viewType == SettingsModule.ViewTypes.IMAGE and itemFolder:FindFirstChild("ImageIcon") then
+		frame.BG.Main.ImageTemplate.Image = itemFolder.ImageIcon.Image
+		frame.BG.Main.ViewportTemplate.Visible = false
+		frame.BG.Main.ImageTemplate.Visible = true
+		if SettingsModule.Debug.ShowItemProcessing then
+			print("DEBUG: Set image for item:", itemName)
+		end
+	else
+		warn("DEBUG: ViewType not set or invalid for item:", itemName)
+	end
+end
 
 -- Helper function to compare item data
 local function areItemsEqual(data1, data2)
@@ -27,21 +115,6 @@ local function areItemsEqual(data1, data2)
 	end
 	
 	return true
-end
-
--- Helper function to print grid visualization
-local function printGridDebug(grid, maxY)
-	print("\nGrid Layout (X = taken, . = empty):")
-	print("   " .. string.rep("-", SettingsModule.MaxSlotsPerRow * 2 + 1))
-	for y = 0, math.max(9, maxY) do -- Show at least 10 rows
-		local row = string.format("%2d |", y)
-		for x = 0, SettingsModule.MaxSlotsPerRow - 1 do
-			row = row .. (grid[x][y] and " X" or " .")
-		end
-		row = row .. " |"
-		print(row)
-	end
-	print("   " .. string.rep("-", SettingsModule.MaxSlotsPerRow * 2 + 1))
 end
 
 -- Helper function to calculate optimal slot position
@@ -156,24 +229,37 @@ local function calculateSlotPosition(frames)
 end
 
 function Functions.SlotHandler(plr)
-	print("DEBUG: Starting SlotHandler for player:", plr.Name)
+	if SettingsModule.Debug.ShowItemProcessing then
+		print("DEBUG: Starting SlotHandler for player:", plr.Name)
+	end
 
 	local PlayerObject = PlayerObjectModule.GetPlayerObject(plr)
-	print("DEBUG: PlayerData module loaded")
+	if SettingsModule.Debug.ShowItemProcessing then
+		print("DEBUG: PlayerData module loaded")
+	end
 	
 	local nbr = 1
 	local frames = {} -- Store frames for positioning
 	
 	-- Clear existing inventory slots except UIGridLayout
-	local inventoryFrame = plr.PlayerGui:WaitForChild("Inventory").Main.Background.InventoryFrame.Inventory
-	print("DEBUG: Got inventory frame reference")
+	local inventoryGui = plr.PlayerGui:WaitForChild("Inventory")
+	local mainFrame = inventoryGui:WaitForChild("Main")
+	local backgroundFrame = mainFrame:WaitForChild("Background")
+	local inventoryContainer = backgroundFrame:WaitForChild("InventoryFrame")
+	local inventoryFrame = inventoryContainer:WaitForChild("Inventory")
+	
+	if SettingsModule.Debug.ShowItemProcessing then
+		print("DEBUG: Got inventory frame reference")
+	end
 	
 	for _, b in pairs(inventoryFrame:GetChildren()) do
 		if not b:IsA("UIGridLayout") then
 			b:Destroy()
 		end
 	end
-	print("DEBUG: Cleared existing inventory slots")
+	if SettingsModule.Debug.ShowItemProcessing then
+		print("DEBUG: Cleared existing inventory slots")
+	end
 	
 	-- Get player's inventory data
 	local inventory = PlayerObject:getInventory()
@@ -181,7 +267,9 @@ function Functions.SlotHandler(plr)
 		warn("DEBUG: No inventory data found for player:", plr.Name)
 		return 
 	end
-	print("DEBUG: Got inventory data:", inventory)
+	if SettingsModule.Debug.ShowItemProcessing then
+		print("DEBUG: Got inventory data:", inventory)
+	end
 	
 	if SettingsModule.ShowQuantity then
 		-- Group similar items
@@ -206,28 +294,21 @@ function Functions.SlotHandler(plr)
 		-- Create frames for grouped items
 		for _, group in ipairs(groupedItems) do
 			local itemData = group.data
-			print("DEBUG: Processing item group:", itemData.name, "#Items:", #group.ids)
+			if SettingsModule.Debug.ShowItemProcessing then
+				print("DEBUG: Processing item group:", itemData.name, "#Items:", #group.ids)
+			end
 			
 			if ItemsFolder:FindFirstChild(itemData.name) then
 				local itemName = itemData.name
 				
-				print("DEBUG: Creating frame for item:", itemName)
+				if SettingsModule.Debug.ShowItemProcessing then
+					print("DEBUG: Creating frame for item:", itemName)
+				end
 				
 				-- Clone template and set properties
 				local frametemplate = CreateFrame.new()
 				frametemplate.Parent = inventoryFrame
-				
-				-- Create frame name with item and data info
-				local frameName = itemName
-				if itemData.data then
-					for key, value in pairs(itemData.data) do
-						frameName = frameName .. "_" .. tostring(key) .. "-" .. tostring(value)
-					end
-				end
-				-- For grouped items, use the first ID in the group
-				frameName = frameName .. "_" .. group.ids[1]
-				
-				frametemplate.Name = frameName
+				frametemplate.Name = createFrameName(itemName, itemData, group.ids[1])
 				frametemplate.LayoutOrder = nbr
 				frametemplate.Item.Value = itemName
 				
@@ -243,46 +324,17 @@ function Functions.SlotHandler(plr)
 				-- Set amount text to show stack size
 				frametemplate.BG.Main.Quantity.Text = tostring(#group.ids)
 				
-				-- Set rarity color
+				-- Set rarity color and view type
 				if itemFolder:FindFirstChild("Rarity") then
-					local rarity = itemFolder.Rarity.Value
-					print("DEBUG: Item rarity:", rarity)
-					local color = SettingsModule.RarityGradient[rarity]:Clone()
-					color.Parent = frametemplate.BG
-					color:Clone().Parent = frametemplate.BG.Main
+					setFrameGradients(frametemplate, itemFolder.Rarity.Value)
 				end
-				
-				-- Handle viewport or image display
-				if itemFolder:FindFirstChild("ViewType") then
-					local viewType = itemFolder.ViewType.Value
-					print("DEBUG: Item view type:", viewType)
-					
-					if viewType == "Viewport" then
-						frametemplate.BG.Main.ViewportTemplate.Visible = true
-						frametemplate.BG.Main.ImageTemplate.Visible = false
-						
-						-- Fire viewport update to client
-						print("DEBUG: Firing viewport update for:", itemName)
-						ReplicatedStorage.AW_Inventory.Remotes.Viewport:FireClient(
-							plr,
-							frametemplate.BG.Main.ViewportTemplate,
-							tostring(itemName)
-						)
-					elseif viewType == "Image" and itemFolder:FindFirstChild("ImageIcon") then
-						frametemplate.BG.Main.ImageTemplate.Image = itemFolder.ImageIcon.Image
-						frametemplate.BG.Main.ViewportTemplate.Visible = false
-						frametemplate.BG.Main.ImageTemplate.Visible = true
-						print("DEBUG: Set image for item:", itemName)
-					else
-						warn("DEBUG: ViewType not set or invalid for item:", itemName)
-					end
-				else
-					warn("DEBUG: ViewType not found for item:", itemName)
-				end
+				setViewType(frametemplate, itemFolder, plr, itemName)
 				
 				table.insert(frames, frametemplate)
 				nbr = nbr + 1
-				print("DEBUG: Finished processing item group:", itemName)
+				if SettingsModule.Debug.ShowItemProcessing then
+					print("DEBUG: Finished processing item group:", itemName)
+				end
 			else
 				warn("DEBUG: Item not configured in ItemsFolder:", itemData.name)
 			end
@@ -291,25 +343,19 @@ function Functions.SlotHandler(plr)
 		-- Create frames for each item individually
 		for uniqueId, itemData in pairs(inventory.Items) do
 			local itemName = itemData.name
-			print("DEBUG: Processing item:", itemName, "ID:", uniqueId)
+			if SettingsModule.Debug.ShowItemProcessing then
+				print("DEBUG: Processing item:", itemName, "ID:", uniqueId)
+			end
 			
 			if ItemsFolder:FindFirstChild(itemName) then
-				print("DEBUG: Creating frame for item:", itemName)
+				if SettingsModule.Debug.ShowItemProcessing then
+					print("DEBUG: Creating frame for item:", itemName)
+				end
 				
 				-- Clone template and set properties
 				local frametemplate = CreateFrame.new()
 				frametemplate.Parent = inventoryFrame
-				
-				-- Create frame name with item and data info
-				local frameName = itemName
-				if itemData.data then
-					for key, value in pairs(itemData.data) do
-						frameName = frameName .. "_" .. tostring(key) .. "-" .. tostring(value)
-					end
-				end
-				frameName = frameName .. "_" .. uniqueId
-				
-				frametemplate.Name = frameName
+				frametemplate.Name = createFrameName(itemName, itemData, uniqueId)
 				frametemplate.LayoutOrder = nbr
 				frametemplate.Item.Value = itemName
 				
@@ -325,46 +371,17 @@ function Functions.SlotHandler(plr)
 				-- Hide quantity label when not using quantities
 				frametemplate.BG.Main.Quantity.Visible = false
 				
-				-- Set rarity color
+				-- Set rarity color and view type
 				if itemFolder:FindFirstChild("Rarity") then
-					local rarity = itemFolder.Rarity.Value
-					print("DEBUG: Item rarity:", rarity)
-					local color = SettingsModule.RarityGradient[rarity]:Clone()
-					color.Parent = frametemplate.BG
-					color:Clone().Parent = frametemplate.BG.Main
+					setFrameGradients(frametemplate, itemFolder.Rarity.Value)
 				end
-				
-				-- Handle viewport or image display
-				if itemFolder:FindFirstChild("ViewType") then
-					local viewType = itemFolder.ViewType.Value
-					print("DEBUG: Item view type:", viewType)
-					
-					if viewType == "Viewport" then
-						frametemplate.BG.Main.ViewportTemplate.Visible = true
-						frametemplate.BG.Main.ImageTemplate.Visible = false
-						
-						-- Fire viewport update to client
-						print("DEBUG: Firing viewport update for:", itemName)
-						ReplicatedStorage.AW_Inventory.Remotes.Viewport:FireClient(
-							plr,
-							frametemplate.BG.Main.ViewportTemplate,
-							tostring(itemName)
-						)
-					elseif viewType == "Image" and itemFolder:FindFirstChild("ImageIcon") then
-						frametemplate.BG.Main.ImageTemplate.Image = itemFolder.ImageIcon.Image
-						frametemplate.BG.Main.ViewportTemplate.Visible = false
-						frametemplate.BG.Main.ImageTemplate.Visible = true
-						print("DEBUG: Set image for item:", itemName)
-					else
-						warn("DEBUG: ViewType not set or invalid for item:", itemName)
-					end
-				else
-					warn("DEBUG: ViewType not found for item:", itemName)
-				end
+				setViewType(frametemplate, itemFolder, plr, itemName)
 				
 				table.insert(frames, frametemplate)
 				nbr = nbr + 1
-				print("DEBUG: Finished processing item:", itemName)
+				if SettingsModule.Debug.ShowItemProcessing then
+					print("DEBUG: Finished processing item:", itemName)
+				end
 			else
 				warn("DEBUG: Item not configured in ItemsFolder:", itemName)
 			end
@@ -376,12 +393,12 @@ function Functions.SlotHandler(plr)
 	for _, posData in ipairs(positions) do
 		local frame = posData.frame
 		local pos = posData.position
-		
-		-- Apply position
 		frame.Position = UDim2.new(pos.X, 0, pos.Y, 0)
 	end
 	
-	print("DEBUG: SlotHandler completed for player:", plr.Name)
+	if SettingsModule.Debug.ShowItemProcessing then
+		print("DEBUG: SlotHandler completed for player:", plr.Name)
+	end
 end
 
 return Functions
