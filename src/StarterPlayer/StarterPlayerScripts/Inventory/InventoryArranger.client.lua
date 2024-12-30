@@ -53,6 +53,11 @@ end
 
 -- Handle viewport updates
 ViewportRemote.OnClientEvent:Connect(function(viewportFrame, itemName)
+
+    if SettingsModule.Debug.EnablePrints then
+        print("DEBUG: Received viewport update for:", itemName)
+    end
+
     -- Validate inputs
     if not viewportFrame or not itemName then 
         warn("Invalid viewport update parameters")
@@ -95,7 +100,7 @@ ViewportRemote.OnClientEvent:Connect(function(viewportFrame, itemName)
             return
         end
         
-        -- Calculate camera position
+            -- Calculate camera position
         local distance = calculateCameraDistance(boundingSize)
         local cameraAngle = CFrame.Angles(
             math.rad(SettingsModule.Viewport.Camera.InitialAngle), 

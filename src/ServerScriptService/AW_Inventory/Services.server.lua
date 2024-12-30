@@ -7,3 +7,4 @@ require(script.Parent.Parent.ServerFlyingModule)
 Cmdr:RegisterDefaultCommands() -- This loads the default set of commands that Cmdr comes with. (Optional)
 Cmdr:RegisterCommandsIn(script.Parent.Commands) -- Register commands from your own folder. (Optional)
 Cmdr:RegisterHooksIn(script.Parent.Hooks)
+

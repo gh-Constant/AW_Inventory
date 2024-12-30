@@ -32,7 +32,7 @@ SettingsModule.PropertyValueSeparator = "-" -- Separator between property name a
 
 -- Debug settings
 SettingsModule.Debug = {
-    EnablePrints = false, -- Master switch for all debug prints
+    EnablePrints = true, -- Master switch for all debug prints
     ShowGridDebug = false, -- Whether to show grid debug information
     ShowItemProcessing = false, -- Whether to show item processing debug information
     MinDebugRows = 10, -- Minimum number of rows to show in grid debug

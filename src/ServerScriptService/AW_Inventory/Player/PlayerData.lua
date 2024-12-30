@@ -246,6 +246,7 @@ end
 
 Players.PlayerAdded:Connect(function(player: Player)
     if not Profiles[player] then
+        print("Setting up player inventory for", player.Name)
         PlayerData.SetupPlayer(player)
     end
 end)
