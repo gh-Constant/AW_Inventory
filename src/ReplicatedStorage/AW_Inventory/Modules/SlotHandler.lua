@@ -29,60 +29,98 @@ local function areItemsEqual(data1, data2)
 	return true
 end
 
+-- Helper function to print grid visualization
+local function printGridDebug(grid, maxY)
+	print("\nGrid Layout (X = taken, . = empty):")
+	print("   " .. string.rep("-", SettingsModule.MaxSlotsPerRow * 2 + 1))
+	for y = 0, math.max(9, maxY) do -- Show at least 10 rows
+		local row = string.format("%2d |", y)
+		for x = 0, SettingsModule.MaxSlotsPerRow - 1 do
+			row = row .. (grid[x][y] and " X" or " .")
+		end
+		row = row .. " |"
+		print(row)
+	end
+	print("   " .. string.rep("-", SettingsModule.MaxSlotsPerRow * 2 + 1))
+end
+
 -- Helper function to calculate optimal slot position
 local function calculateSlotPosition(frames)
 	local positions = {} -- Will store {frame = frame, position = Vector2}
-	local rows = {} -- Will store arrays of frames and their occupied slots for each row
+	local grid = {} -- 2D grid to track occupied slots
+	local maxY = 0 -- Track the maximum Y position used
 	
-	-- Sort frames by size (GridSize.X * GridSize.Y) in descending order
-	table.sort(frames, function(a, b)
-		local aSize = (a.GridSize and (a.GridSize.X * a.GridSize.Y)) or 1
-		local bSize = (b.GridSize and (b.GridSize.X * b.GridSize.Y)) or 1
-		return aSize > bSize
+	-- Initialize grid
+	for x = 0, SettingsModule.MaxSlotsPerRow - 1 do
+		grid[x] = {}
+	end
+	
+	-- Calculate grid sizes and sort frames by total area in descending order
+	local frameData = {}
+	for _, frame in ipairs(frames) do
+		local gridSizeX = math.round(frame.Size.X.Scale / SettingsModule.SlotSize.X)
+		local gridSizeY = math.round(frame.Size.Y.Scale / SettingsModule.SlotSize.Y)
+		table.insert(frameData, {
+			frame = frame,
+			gridSize = Vector2.new(gridSizeX, gridSizeY),
+			area = gridSizeX * gridSizeY
+		})
+	end
+	
+	table.sort(frameData, function(a, b)
+		return a.area > b.area
 	end)
 	
-	-- Helper function to check if a position is available in a row
-	local function isPositionAvailable(row, startX, gridSize)
-		-- Check each slot the item would occupy
+	-- Helper function to check if a position is available
+	local function isPositionAvailable(startX, startY, gridSize)
+		if startX + gridSize.X > SettingsModule.MaxSlotsPerRow then
+			return false
+		end
+		
 		for x = startX, startX + gridSize.X - 1 do
-			for y = 0, gridSize.Y - 1 do
-				-- Check if any slot in this position is already occupied
-				for _, occupied in ipairs(row.occupied) do
-					if x >= occupied.x and x < occupied.x + occupied.width and
-					   y >= occupied.y and y < occupied.y + occupied.height then
-						return false
-					end
+			for y = startY, startY + gridSize.Y - 1 do
+				if grid[x][y] then
+					return false
 				end
 			end
 		end
 		return true
 	end
 	
+	-- Helper function to mark slots as occupied
+	local function markSlotsOccupied(startX, startY, gridSize)
+		for x = startX, startX + gridSize.X - 1 do
+			for y = startY, startY + gridSize.Y - 1 do
+				grid[x][y] = true
+			end
+		end
+		maxY = math.max(maxY, startY + gridSize.Y)
+	end
+	
 	-- Process each frame
-	for _, frame in ipairs(frames) do
-		local gridSize = frame.GridSize or Vector3.new(1, 1, 0)
+	for _, data in ipairs(frameData) do
+		local frame = data.frame
+		local gridSize = data.gridSize
 		local placed = false
 		
-		-- Try to place in existing rows first
-		for rowIndex, row in ipairs(rows) do
-			-- Try each possible X position in this row
+		print(string.format("\nPlacing item: %s (Size: %dx%d)", frame.Item.Value, gridSize.X, gridSize.Y))
+		
+		-- Try each Y position from top to bottom
+		for y = 0, maxY do
+			-- Try each X position in this row
 			for x = 0, SettingsModule.MaxSlotsPerRow - gridSize.X do
-				if isPositionAvailable(row, x, gridSize) then
+				if isPositionAvailable(x, y, gridSize) then
 					-- Place frame here
 					table.insert(positions, {
 						frame = frame,
 						position = Vector2.new(
 							x * SettingsModule.SlotSize.X,
-							(rowIndex - 1) * SettingsModule.SlotSize.Y
+							y * SettingsModule.SlotSize.Y
 						)
 					})
-					-- Mark slots as occupied
-					table.insert(row.occupied, {
-						x = x,
-						y = 0,
-						width = gridSize.X,
-						height = gridSize.Y
-					})
+					markSlotsOccupied(x, y, gridSize)
+					print(string.format("Placed at position: (%d, %d)", x, y))
+					printGridDebug(grid, maxY)
 					placed = true
 					break
 				end
@@ -90,27 +128,29 @@ local function calculateSlotPosition(frames)
 			if placed then break end
 		end
 		
-		-- If couldn't place in existing rows, create new row
+		-- If couldn't place in existing rows, add to new row
 		if not placed then
-			local newRow = {occupied = {}}
-			table.insert(rows, newRow)
-			-- Place at start of new row
-			table.insert(positions, {
-				frame = frame,
-				position = Vector2.new(
-					0,
-					(#rows - 1) * SettingsModule.SlotSize.Y
-				)
-			})
-			-- Mark slots as occupied
-			table.insert(newRow.occupied, {
-				x = 0,
-				y = 0,
-				width = gridSize.X,
-				height = gridSize.Y
-			})
+			local y = maxY
+			for x = 0, SettingsModule.MaxSlotsPerRow - gridSize.X do
+				if isPositionAvailable(x, y, gridSize) then
+					table.insert(positions, {
+						frame = frame,
+						position = Vector2.new(
+							x * SettingsModule.SlotSize.X,
+							y * SettingsModule.SlotSize.Y
+						)
+					})
+					markSlotsOccupied(x, y, gridSize)
+					print(string.format("Placed at new row position: (%d, %d)", x, y))
+					printGridDebug(grid, maxY)
+					break
+				end
+			end
 		end
 	end
+	
+	print("\nFinal grid layout:")
+	printGridDebug(grid, maxY)
 	
 	return positions
 end
@@ -176,14 +216,28 @@ function Functions.SlotHandler(plr)
 				-- Clone template and set properties
 				local frametemplate = CreateFrame.new()
 				frametemplate.Parent = inventoryFrame
-				frametemplate.Name = nbr
+				
+				-- Create frame name with item and data info
+				local frameName = itemName
+				if itemData.data then
+					for key, value in pairs(itemData.data) do
+						frameName = frameName .. "_" .. tostring(key) .. "-" .. tostring(value)
+					end
+				end
+				-- For grouped items, use the first ID in the group
+				frameName = frameName .. "_" .. group.ids[1]
+				
+				frametemplate.Name = frameName
 				frametemplate.LayoutOrder = nbr
 				frametemplate.Item.Value = itemName
 				
-				-- Get item grid size
+				-- Get item grid size and set frame size
 				local itemFolder = ItemsFolder[itemName]
 				if itemFolder:FindFirstChild("GridSize") then
-					frametemplate.GridSize = itemFolder.GridSize.Value
+					local gridSize = itemFolder.GridSize.Value
+					local width = SettingsModule.SlotSize.X * gridSize.X + SettingsModule.GridPadding.X * (gridSize.X - 1)
+					local height = SettingsModule.SlotSize.Y * gridSize.Y + SettingsModule.GridPadding.Y * (gridSize.Y - 1)
+					frametemplate.Size = UDim2.new(width, 0, height, 0)
 				end
 				
 				-- Set amount text to show stack size
@@ -245,14 +299,27 @@ function Functions.SlotHandler(plr)
 				-- Clone template and set properties
 				local frametemplate = CreateFrame.new()
 				frametemplate.Parent = inventoryFrame
-				frametemplate.Name = nbr
+				
+				-- Create frame name with item and data info
+				local frameName = itemName
+				if itemData.data then
+					for key, value in pairs(itemData.data) do
+						frameName = frameName .. "_" .. tostring(key) .. "-" .. tostring(value)
+					end
+				end
+				frameName = frameName .. "_" .. uniqueId
+				
+				frametemplate.Name = frameName
 				frametemplate.LayoutOrder = nbr
 				frametemplate.Item.Value = itemName
 				
-				-- Get item grid size
+				-- Get item grid size and set frame size
 				local itemFolder = ItemsFolder[itemName]
 				if itemFolder:FindFirstChild("GridSize") then
-					frametemplate.GridSize = itemFolder.GridSize.Value
+					local gridSize = itemFolder.GridSize.Value
+					local width = SettingsModule.SlotSize.X * gridSize.X + SettingsModule.GridPadding.X * (gridSize.X - 1)
+					local height = SettingsModule.SlotSize.Y * gridSize.Y + SettingsModule.GridPadding.Y * (gridSize.Y - 1)
+					frametemplate.Size = UDim2.new(width, 0, height, 0)
 				end
 				
 				-- Hide quantity label when not using quantities
@@ -310,13 +377,7 @@ function Functions.SlotHandler(plr)
 		local frame = posData.frame
 		local pos = posData.position
 		
-		-- Calculate size based on grid size
-		local gridSize = frame.GridSize or Vector3.new(1, 1, 0)
-		local width = SettingsModule.SlotSize.X * gridSize.X + SettingsModule.GridPadding.X * (gridSize.X - 1)
-		local height = SettingsModule.SlotSize.Y * gridSize.Y + SettingsModule.GridPadding.Y * (gridSize.Y - 1)
-		
-		-- Apply position and size
-		frame.Size = UDim2.new(width, 0, height, 0)
+		-- Apply position
 		frame.Position = UDim2.new(pos.X, 0, pos.Y, 0)
 	end
 	
