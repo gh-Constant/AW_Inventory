@@ -9,7 +9,8 @@ local GiveItem = ReplicatedStorage.AW_Inventory.Remotes.GiveItem
 
 local button = script.Parent.Button
 local itemValue = script.Parent.Item
-local background = script.Parent.Background
+local background = script.Parent.BG
+local Main = background.Main
 
 -- Handle item rarity gradient
 local function updateRarityGradient()
@@ -17,13 +18,21 @@ local function updateRarityGradient()
     if not itemName then return end
     
     local itemFolder = ReplicatedStorage.AW_Inventory.Items:FindFirstChild(itemName)
-    if not itemFolder or not itemFolder:FindFirstChild("Rarity") then return end
+    if not itemFolder or not itemFolder:FindFirstChild("Rarity") then 
+        print("[Inventory] Item not found or does not have a rarity")
+        print("Setting default rarity gradient")
+        local rarityGradient = SettingsModule.RarityGradient.Common:Clone()
+        rarityGradient.Parent = background
+        rarityGradient:Clone().Parent = Main
+        return 
+    end
     
     local rarity = itemFolder.Rarity.Value
     local rarityGradient = SettingsModule.RarityGradient[rarity]
     if rarityGradient then
         local gradientClone = rarityGradient:Clone()
         gradientClone.Parent = background
+        rarityGradient:Clone().Parent = Main
     end
 end
 
