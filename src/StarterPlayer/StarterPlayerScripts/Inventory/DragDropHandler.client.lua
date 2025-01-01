@@ -6,6 +6,7 @@ local SettingsModule = require(ReplicatedStorage.AW_Inventory.SettingsModule)
 
 -- Get the EquipItem remote
 local EquipItemRemote = ReplicatedStorage.AW_Inventory.Remotes.EquipItem
+local UnequipItemRemote = ReplicatedStorage.AW_Inventory.Remotes.UnequipItem
 
 -- Helper function for debug prints
 local function debugPrint(message, ...)
@@ -44,16 +45,26 @@ local function highlightSlot(slot)
 end
 
 -- Helper function to get the closest slot to a position
-local function getClosestSlot(position, currentFrame)
+local function getClosestSlot(position, currentFrame, targetContainer)
     local closestSlot = nil
     local closestDistance = math.huge
     local slotNumber = nil
     
+    -- If targeting inventory, just return the inventory frame if position is over it
+    if targetContainer == inventoryFrame then
+        local frame = inventoryFrame
+        local isInBounds = position.X >= frame.AbsolutePosition.X 
+            and position.X <= frame.AbsolutePosition.X + frame.AbsoluteSize.X
+            and position.Y >= frame.AbsolutePosition.Y 
+            and position.Y <= frame.AbsolutePosition.Y + frame.AbsoluteSize.Y
+            
+        return isInBounds and frame or nil, isInBounds and 0 or math.huge, nil
+    end
+    
+    -- Original slot finding logic for SlotsFrame
     for _, object in ipairs(slotsFrame:GetChildren()) do
         if object:IsA("ImageLabel") and object.Name:match("^Slot%d+$") then
-            -- Get the center position of the slot
             local slotCenter = object.AbsolutePosition + (object.AbsoluteSize / 2)
-            -- Calculate distance using Vector2 distance
             local distance = (Vector2.new(position.X, position.Y) - Vector2.new(slotCenter.X, slotCenter.Y)).Magnitude
             
             if distance < closestDistance then
@@ -68,13 +79,12 @@ local function getClosestSlot(position, currentFrame)
 end
 
 -- Function to handle frame dragging
-local function setupDraggable(frame)
-    debugPrint("Setting up draggable for frame: %s", frame.Name)
+local function setupDraggable(frame, isEquippedItem)
+    debugPrint("Setting up draggable for frame: %s (Equipped: %s)", frame.Name, tostring(isEquippedItem))
     
     local draggableObject = Draggable.new(frame)
-    draggableObject:IncludeDescendants() -- Make the entire frame draggable
+    draggableObject:IncludeDescendants()
     
-    -- Store original properties
     local originalParent = frame.Parent
     local originalPosition = frame.Position
     local originalTransparency = frame.BackgroundTransparency
@@ -111,37 +121,54 @@ local function setupDraggable(frame)
         frame.ZIndex = 999
     end)
     
-    -- While dragging
     draggableObject.Dragging:Connect(function(mousePosition)
-        -- Get closest slot during drag
-        local closestSlot, distance, slotNumber = getClosestSlot(mousePosition, frame)
-        if closestSlot and distance < 50 then -- You can adjust this threshold
-            debugPrint("Close to slot number: %d (Distance: %.2f)", slotNumber, distance)
-            highlightSlot(closestSlot)
+        -- Check closest slot or inventory frame based on where the item came from
+        local targetContainer = isEquippedItem and inventoryFrame or slotsFrame
+        local closest, distance = getClosestSlot(mousePosition, frame, targetContainer)
+        
+        if closest and distance < 50 then
+            if isEquippedItem then
+                -- When dragging from slots to inventory, highlight the inventory frame
+                inventoryFrame.BackgroundColor3 = Color3.new(0, 1, 0)
+                inventoryFrame.BackgroundTransparency = 0.9
+            else
+                -- When dragging from inventory to slots, highlight the slot
+                highlightSlot(closest)
+            end
         else
-            highlightSlot(nil) -- Remove highlight when not close to any slot
+            if isEquippedItem then
+                inventoryFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+                inventoryFrame.BackgroundTransparency = 1
+            else
+                highlightSlot(nil)
+            end
         end
     end)
     
-    -- When dragging ends
     draggableObject.Ended:Connect(function(mousePosition)
-        -- Remove any slot highlight
+        -- Reset highlights
         highlightSlot(nil)
+        inventoryFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+        inventoryFrame.BackgroundTransparency = 1
         
-        local closestSlot, distance, slotNumber = getClosestSlot(mousePosition, frame)
-        if closestSlot and distance < 50 then
-            debugPrint("Dropped near slot number: %d (Distance: %.2f)", slotNumber, distance)
+        local targetContainer = isEquippedItem and inventoryFrame or slotsFrame
+        local closest, distance, slotNumber = getClosestSlot(mousePosition, frame, targetContainer)
+        
+        if closest and distance < 50 then
+            local uniqueId = frame.Name:match("_([^_]+)$")
             
-            -- Get the item name and data from the frame
-            local itemName = frame.Item.Value
-            -- Extract the unique ID from the frame name
-            local uniqueId = frame.Name:match("_([^_]+)$") -- Gets the last part after underscore
-            
-            -- Call the EquipItem remote
-            EquipItemRemote:FireServer(slotNumber, uniqueId)
+            if isEquippedItem then
+                -- If dropping an equipped item into inventory
+                debugPrint("Unequipping item with ID: %s", uniqueId)
+                UnequipItemRemote:FireServer(uniqueId)
+            else
+                -- If dropping an inventory item into a slot
+                debugPrint("Equipping item to slot %d with ID: %s", slotNumber, uniqueId)
+                EquipItemRemote:FireServer(slotNumber, uniqueId)
+            end
         end
         
-        -- Reset all properties
+        -- Reset frame properties
         frame.Parent = originalParent
         frame.Position = originalPosition
         frame.Size = originalSize
@@ -152,17 +179,35 @@ end
 
 debugPrint("Initializing drag and drop system")
 
--- Setup draggable for all existing frames
+-- Setup draggable for all existing inventory frames
 for _, frame in ipairs(inventoryFrame:GetChildren()) do
     if frame:IsA("Frame") then
-        setupDraggable(frame)
+        setupDraggable(frame, false)
     end
 end
 
--- Setup draggable for new frames
+-- Setup draggable for all existing slot frames
+for _, slot in ipairs(slotsFrame:GetChildren()) do
+    if slot:IsA("ImageLabel") and slot.Name:match("^Slot%d+$") then
+        for _, frame in ipairs(slot:GetChildren()) do
+            if frame:IsA("Frame") then
+                setupDraggable(frame, true)
+            end
+        end
+        
+        -- Watch for new frames added to slots
+        slot.ChildAdded:Connect(function(child)
+            if child:IsA("Frame") then
+                setupDraggable(child, true)
+            end
+        end)
+    end
+end
+
+-- Watch for new inventory frames
 inventoryFrame.ChildAdded:Connect(function(child)
     if child:IsA("Frame") then
-        setupDraggable(child)
+        setupDraggable(child, false)
     end
 end)
 

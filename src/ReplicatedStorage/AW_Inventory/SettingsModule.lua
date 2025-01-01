@@ -93,4 +93,14 @@ SettingsModule.EquipHighlight = {
     BorderSize = UDim.new(0, 2) -- Size of the highlight border
 }
 
+-- Inventory UI settings
+SettingsModule.InventoryUI = {
+    ToggleKey = Enum.KeyCode.H, -- Key to open/close inventory
+    BlurEffect = {
+        Size = 24, -- Blur intensity
+        Enabled = true -- Whether blur effect is enabled
+    },
+    TransitionTime = 0.3 -- Time for UI transitions (opening/closing)
+}
+
 return SettingsModule 

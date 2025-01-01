@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 
 local PlayerObjectModule = require(script.Parent.Player.PlayerObject)
 local SettingsModule = require(ReplicatedStorage.AW_Inventory.SettingsModule)
+local SlotHandler = require(ReplicatedStorage.AW_Inventory.Modules.SlotHandler)
 
 -- Get the items folder
 local ItemsFolder = ReplicatedStorage.AW_Inventory.Items
@@ -75,6 +76,9 @@ EquipItemRemote.OnServerEvent:Connect(function(player, slotNumber, itemId)
     -- Remove the item from inventory
     PlayerObject:removeItemFromInventory(itemId)
     
+    -- Update the inventory UI
+    SlotHandler.SlotHandler(player)
+
     debugPrint("Successfully equipped item %s to slot %d for player %s", itemData.name, slotNumber, player.Name)
 end)
 
