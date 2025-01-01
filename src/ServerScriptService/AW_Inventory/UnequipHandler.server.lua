@@ -11,6 +11,28 @@ local function debugPrint(message, ...)
     print(string.format("[UnequipHandler] " .. message, ...))
 end
 
+-- Helper function to find and destroy equipped tool
+local function destroyEquippedTool(player, slotNumber)
+    if not player.Character then return end
+    
+    for _, tool in ipairs(player.Character:GetChildren()) do
+        if tool:IsA("Tool") and tool:GetAttribute("SlotNumber") == slotNumber then
+            tool:Destroy()
+            return true
+        end
+    end
+    
+    -- Also check backpack just in case
+    for _, tool in ipairs(player.Backpack:GetChildren()) do
+        if tool:IsA("Tool") and tool:GetAttribute("SlotNumber") == slotNumber then
+            tool:Destroy()
+            return true
+        end
+    end
+    
+    return false
+end
+
 -- Setup remote event handler
 local UnequipItemRemote = ReplicatedStorage.AW_Inventory.Remotes.UnequipItem
 
@@ -42,6 +64,9 @@ UnequipItemRemote.OnServerEvent:Connect(function(player, uniqueId)
         debugPrint("Item %s not found in equipped slots", uniqueId)
         return
     end
+    
+    -- First destroy any equipped instance of this tool
+    destroyEquippedTool(player, tonumber(targetSlot))
     
     -- Remove from equipped slots
     equipped[targetSlot] = nil

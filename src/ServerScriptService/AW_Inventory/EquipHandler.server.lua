@@ -128,7 +128,7 @@ ReplicatedStorage.AW_Inventory.Remotes.HotkeyEquip.OnServerEvent:Connect(functio
         local tool = toolTemplate:Clone()
         tool.Name = slotData.name
         
-        -- Set attributes
+        -- Set attributes with the ACTUAL slot number (not a potentially mismatched one)
         tool:SetAttribute("SlotNumber", slotNumber)
         tool:SetAttribute("ItemId", slotData.id)
         tool:SetAttribute("ItemName", slotData.name)

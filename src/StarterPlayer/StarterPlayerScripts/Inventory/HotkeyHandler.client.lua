@@ -97,8 +97,27 @@ local function removeHighlight(slot)
     end
 end
 
+-- Function to check if a slot has an item
+local function hasItemInSlot(slot)
+    for _, child in ipairs(slot:GetChildren()) do
+        if child:IsA("Frame") and child:FindFirstChild("Item") then
+            return true
+        end
+    end
+    return false
+end
+
 -- Function to toggle highlight
 local function toggleHighlight(slot)
+    -- Don't highlight if there's no item in the slot
+    if not hasItemInSlot(slot) then
+        if slotHighlights[slot] then
+            removeHighlight(slot)
+            currentlyEquippedSlot = nil
+        end
+        return false
+    end
+
     if slotHighlights[slot] then
         removeHighlight(slot)
         currentlyEquippedSlot = nil
@@ -122,6 +141,11 @@ local function playHotbarEffect(slotNumber)
     local slot = hotbarSlotsFrame:FindFirstChild("Slot" .. slotNumber)
     
     if slot then
+        -- Don't do anything if there's no item in the slot
+        if not hasItemInSlot(slot) then
+            return
+        end
+
         -- If this is the currently equipped slot, unequip it
         if currentlyEquippedSlot == slot then
             createEquipEffect(slot)
@@ -151,9 +175,16 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         local hotbarSlotsFrame = hotbarGui:WaitForChild("Main"):WaitForChild("SlotsFrame")
         local slot = hotbarSlotsFrame:FindFirstChild("Slot" .. slotNumber)
         
-        if slot and (currentlyEquippedSlot == slot or not currentlyEquippedSlot) then
-            HotkeyRemote:FireServer(slotNumber)
-            playHotbarEffect(slotNumber)
+        if slot then
+            -- Don't do anything if there's no item in the slot
+            if not hasItemInSlot(slot) then
+                return
+            end
+
+            if currentlyEquippedSlot == slot or not currentlyEquippedSlot then
+                HotkeyRemote:FireServer(slotNumber)
+                playHotbarEffect(slotNumber)
+            end
         end
     end
 end)
