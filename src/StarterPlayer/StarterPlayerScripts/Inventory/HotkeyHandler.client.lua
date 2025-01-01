@@ -1,7 +1,9 @@
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 
 local HotkeyRemote = ReplicatedStorage.AW_Inventory.Remotes.HotkeyEquip
+local SettingsModule = require(ReplicatedStorage.AW_Inventory.SettingsModule)
 
 -- Map number keys to their keycode
 local numberKeys = {
@@ -16,11 +18,151 @@ local numberKeys = {
     [Enum.KeyCode.Nine] = 9,
 }
 
+-- Keep track of highlights and currently equipped slot
+local slotHighlights = {}
+local currentlyEquippedSlot = nil
+
+-- Function to create and play the equip effect
+local function createEquipEffect(slot)
+    -- Create the effect frame
+    local effectFrame = Instance.new("Frame")
+    effectFrame.Name = "EquipEffect"
+    effectFrame.BackgroundColor3 = SettingsModule.EquipEffect.Color
+    effectFrame.BackgroundTransparency = SettingsModule.EquipEffect.Transparency.Start
+    effectFrame.Size = SettingsModule.EquipEffect.Size.Start
+    effectFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    effectFrame.Position = UDim2.fromScale(0.5, 0.5)
+    effectFrame.Parent = slot
+    effectFrame.ZIndex = 999 -- Make sure effect appears above other UI elements
+    
+    -- Create corner to make it rounded
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0.1, 0)
+    corner.Parent = effectFrame
+    
+    -- Animate the effect
+    local tweenInfo = TweenInfo.new(
+        SettingsModule.EquipEffect.Duration,
+        Enum.EasingStyle.Quad,
+        Enum.EasingDirection.Out
+    )
+    
+    local tween = game:GetService("TweenService"):Create(effectFrame, tweenInfo, {
+        Size = SettingsModule.EquipEffect.Size.End,
+        BackgroundTransparency = SettingsModule.EquipEffect.Transparency.End
+    })
+    
+    tween:Play()
+    
+    -- Clean up after animation
+    tween.Completed:Connect(function()
+        effectFrame:Destroy()
+    end)
+end
+
+-- Function to create persistent highlight
+local function createHighlight(slot)
+    -- Remove existing highlight if any
+    if slotHighlights[slot] then
+        slotHighlights[slot]:Destroy()
+        slotHighlights[slot] = nil
+    end
+    
+    -- Create highlight frame
+    local highlightFrame = Instance.new("Frame")
+    highlightFrame.Name = "EquipHighlight"
+    highlightFrame.BackgroundColor3 = SettingsModule.EquipHighlight.Color
+    highlightFrame.BackgroundTransparency = SettingsModule.EquipHighlight.Transparency
+    highlightFrame.Size = UDim2.fromScale(1, 1)
+    highlightFrame.Position = UDim2.fromScale(0, 0)
+    highlightFrame.ZIndex = 2 -- Below the item but above the slot
+    highlightFrame.Parent = slot
+    
+    -- Create corner to make it rounded
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0.1, 0)
+    corner.Parent = highlightFrame
+    
+    -- Store reference to highlight
+    slotHighlights[slot] = highlightFrame
+    
+    return highlightFrame
+end
+
+-- Function to remove highlight
+local function removeHighlight(slot)
+    if slotHighlights[slot] then
+        slotHighlights[slot]:Destroy()
+        slotHighlights[slot] = nil
+    end
+end
+
+-- Function to toggle highlight
+local function toggleHighlight(slot)
+    if slotHighlights[slot] then
+        removeHighlight(slot)
+        currentlyEquippedSlot = nil
+        return false
+    else
+        -- Remove highlight from previously equipped slot if any
+        if currentlyEquippedSlot and currentlyEquippedSlot ~= slot then
+            removeHighlight(currentlyEquippedSlot)
+        end
+        createHighlight(slot)
+        currentlyEquippedSlot = slot
+        return true
+    end
+end
+
+-- Function to play effect on hotbar slot
+local function playHotbarEffect(slotNumber)
+    local player = Players.LocalPlayer
+    local hotbarGui = player.PlayerGui:WaitForChild("Hotbar")
+    local hotbarSlotsFrame = hotbarGui:WaitForChild("Main"):WaitForChild("SlotsFrame")
+    local slot = hotbarSlotsFrame:FindFirstChild("Slot" .. slotNumber)
+    
+    if slot then
+        -- If this is the currently equipped slot, unequip it
+        if currentlyEquippedSlot == slot then
+            createEquipEffect(slot)
+            toggleHighlight(slot)
+            return
+        end
+        
+        -- If another slot is equipped, ignore this request
+        if currentlyEquippedSlot and currentlyEquippedSlot ~= slot then
+            return
+        end
+        
+        -- Otherwise, equip this slot
+        createEquipEffect(slot)
+        toggleHighlight(slot)
+    end
+end
+
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
     local slotNumber = numberKeys[input.KeyCode]
     if slotNumber then
-        HotkeyRemote:FireServer(slotNumber)
+        -- Only send to server if we're unequipping current slot or no slot is equipped
+        local player = Players.LocalPlayer
+        local hotbarGui = player.PlayerGui:WaitForChild("Hotbar")
+        local hotbarSlotsFrame = hotbarGui:WaitForChild("Main"):WaitForChild("SlotsFrame")
+        local slot = hotbarSlotsFrame:FindFirstChild("Slot" .. slotNumber)
+        
+        if slot and (currentlyEquippedSlot == slot or not currentlyEquippedSlot) then
+            HotkeyRemote:FireServer(slotNumber)
+            playHotbarEffect(slotNumber)
+        end
     end
+end)
+
+-- Clean up highlights when player leaves
+Players.LocalPlayer.CharacterRemoving:Connect(function()
+    currentlyEquippedSlot = nil
+    for slot, highlight in pairs(slotHighlights) do
+        highlight:Destroy()
+    end
+    slotHighlights = {}
 end) 

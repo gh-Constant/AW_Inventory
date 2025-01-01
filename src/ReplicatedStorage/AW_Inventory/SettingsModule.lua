@@ -7,6 +7,7 @@ SettingsModule.ShowQuantity = false -- Set to true to group similar items and sh
 SettingsModule.SlotSize = Vector2.new(0.12, 0.05) -- Base size for a single slot
 SettingsModule.GridPadding = Vector2.new(0.0, 0.0) -- Padding between slots
 SettingsModule.MaxSlotsPerRow = 8 -- Maximum number of slots per row
+SettingsModule.HotbarSlots = 9 -- Number of slots in the hotbar (matches the number keys 1-9)
 
 -- Rarity configuration
 SettingsModule.RarityGradient = {
@@ -69,6 +70,27 @@ SettingsModule.Viewport = {
     Model = {
         ViewModelPath = "ViewModel",
     },
+}
+
+-- Equip effect settings
+SettingsModule.EquipEffect = {
+    Duration = 0.3, -- Duration of the effect in seconds
+    Color = Color3.fromRGB(255, 255, 255), -- Color of the glow effect
+    Transparency = {
+        Start = 0,
+        End = 1
+    },
+    Size = {
+        Start = UDim2.fromScale(1.2, 1.2),
+        End = UDim2.fromScale(1, 1)
+    }
+}
+
+-- Highlight settings for equipped items
+SettingsModule.EquipHighlight = {
+    Color = Color3.fromRGB(255, 255, 255), -- Color of the highlight
+    Transparency = 0.8, -- How transparent the highlight should be (0-1)
+    BorderSize = UDim.new(0, 2) -- Size of the highlight border
 }
 
 return SettingsModule 

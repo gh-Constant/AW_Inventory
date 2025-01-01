@@ -47,6 +47,43 @@ local function createFrameName(itemName, itemData, uniqueId)
 	return frameName .. SettingsModule.FrameNameSeparator .. uniqueId
 end
 
+-- Helper function to create equip effect
+local function createEquipEffect(slot)
+	-- Create the effect frame
+	local effectFrame = Instance.new("Frame")
+	effectFrame.Name = "EquipEffect"
+	effectFrame.BackgroundColor3 = SettingsModule.EquipEffect.Color
+	effectFrame.BackgroundTransparency = SettingsModule.EquipEffect.Transparency.Start
+	effectFrame.Size = SettingsModule.EquipEffect.Size.Start
+	effectFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+	effectFrame.Position = UDim2.fromScale(0.5, 0.5)
+	effectFrame.Parent = slot
+	
+	-- Create corner to make it rounded
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.1, 0)
+	corner.Parent = effectFrame
+	
+	-- Animate the effect
+	local tweenInfo = TweenInfo.new(
+		SettingsModule.EquipEffect.Duration,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	)
+	
+	local tween = game:GetService("TweenService"):Create(effectFrame, tweenInfo, {
+		Size = SettingsModule.EquipEffect.Size.End,
+		BackgroundTransparency = SettingsModule.EquipEffect.Transparency.End
+	})
+	
+	tween:Play()
+	
+	-- Clean up after animation
+	tween.Completed:Connect(function()
+		effectFrame:Destroy()
+	end)
+end
+
 -- Helper function to set frame gradients
 local function setFrameGradients(frame, rarity)
 	-- Create base gradient for BG
@@ -410,34 +447,97 @@ function Functions.SlotHandler(plr)
 	-- Handle equipped items
 	local equipped = PlayerObject:getEquipped()
 	if equipped then
-		for slotNumber, itemData in pairs(equipped) do
-			local slot = mainFrame.SlotsFrame:FindFirstChild("Slot" .. slotNumber)
-			if slot then
-				-- Create frame for the equipped item
-				local frametemplate = CreateFrame.new()
-				frametemplate.Parent = slot
-				frametemplate.Name = createFrameName(itemData.name, itemData, itemData.id)
-				frametemplate.Item.Value = itemData.name
-				
-				-- Set frame to fill the slot
-				frametemplate.Size = UDim2.fromScale(1, 1)
-				frametemplate.Position = UDim2.fromScale(0, 0)
-				
-				-- Get item folder for additional data
-				local itemFolder = ItemsFolder:FindFirstChild(itemData.name)
-				if itemFolder then
-					-- Set rarity color if exists
-					if itemFolder:FindFirstChild("Rarity") then
-						setFrameGradients(frametemplate, itemFolder.Rarity.Value)
+		if SettingsModule.Debug.ShowItemProcessing then
+			debugPrint("Processing equipped items for player: %s", plr.Name)
+		end
+
+		-- Get references to both inventory and hotbar GUIs
+		local inventorySlotsFrame = mainFrame.SlotsFrame
+		local hotbarGui = plr.PlayerGui:WaitForChild("Hotbar")
+		local hotbarSlotsFrame = hotbarGui:WaitForChild("Main"):WaitForChild("SlotsFrame")
+
+		-- Clear existing equipped items from both frames
+		local function clearSlots(slotsFrame)
+			for _, slot in pairs(slotsFrame:GetChildren()) do
+				if slot:IsA("ImageLabel") and slot.Name:match("^Slot%d+$") then
+					for _, child in pairs(slot:GetChildren()) do
+						if child:IsA("Frame") then
+							child:Destroy()
+						end
 					end
-					
-					-- Set view type
-					setViewType(frametemplate, itemFolder, plr, itemData.name)
-					
-					-- Hide quantity label for equipped items
-					frametemplate.BG.Main.Quantity.Visible = false
 				end
 			end
+		end
+
+		clearSlots(inventorySlotsFrame)
+		clearSlots(hotbarSlotsFrame)
+
+		-- Function to create equipped item frame
+		local function createEquippedFrame(slot, itemData)
+			if SettingsModule.Debug.ShowItemProcessing then
+				debugPrint("Found slot %s, creating frame", slot.Name)
+			end
+
+			-- Create frame for the equipped item
+			local frametemplate = CreateFrame.new()
+			frametemplate.Parent = slot
+			frametemplate.Name = createFrameName(itemData.name, itemData, itemData.id)
+			frametemplate.Item.Value = itemData.name
+
+			-- Set frame to fill the slot
+			frametemplate.Size = UDim2.fromScale(1, 1)
+			frametemplate.Position = UDim2.fromScale(0, 0)
+
+			-- Get item folder for additional data
+			local itemFolder = ItemsFolder:FindFirstChild(itemData.name)
+			if itemFolder then
+				if SettingsModule.Debug.ShowItemProcessing then
+					debugPrint("Found item folder for %s, applying visuals", itemData.name)
+				end
+
+				-- Set rarity color if exists
+				if itemFolder:FindFirstChild("Rarity") then
+					setFrameGradients(frametemplate, itemFolder.Rarity.Value)
+				end
+
+				-- Set view type
+				setViewType(frametemplate, itemFolder, plr, itemData.name)
+
+				-- Hide quantity label for equipped items
+				frametemplate.BG.Main.Quantity.Visible = false
+			else
+				debugWarn("Item folder not found for equipped item: %s", itemData.name)
+			end
+		end
+
+		-- Process equipped items for both frames
+		for slotNumber, itemData in pairs(equipped) do
+			if SettingsModule.Debug.ShowItemProcessing then
+				debugPrint("Processing equipped item in slot %s: %s (ID: %s)", 
+					tostring(slotNumber), 
+					tostring(itemData.name), 
+					tostring(itemData.id))
+			end
+
+			-- Handle inventory slots
+			local inventorySlot = inventorySlotsFrame:FindFirstChild("Slot" .. slotNumber)
+			if inventorySlot then
+				createEquippedFrame(inventorySlot, itemData)
+			else
+				debugWarn("Inventory slot %s not found for equipped item: %s", tostring(slotNumber), itemData.name)
+			end
+
+			-- Handle hotbar slots
+			local hotbarSlot = hotbarSlotsFrame:FindFirstChild("Slot" .. slotNumber)
+			if hotbarSlot then
+				createEquippedFrame(hotbarSlot, itemData)
+			else
+				debugWarn("Hotbar slot %s not found for equipped item: %s", tostring(slotNumber), itemData.name)
+			end
+		end
+
+		if SettingsModule.Debug.ShowItemProcessing then
+			debugPrint("Finished processing equipped items for player: %s", plr.Name)
 		end
 	end
 	

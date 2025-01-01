@@ -13,6 +13,18 @@ local function debugPrint(message, ...)
     print(string.format("[EquipHandler] " .. message, ...))
 end
 
+-- Helper function to check if player has any equipped tools
+local function hasEquippedTool(player)
+    if not player.Character then return false end
+    
+    for _, item in ipairs(player.Character:GetChildren()) do
+        if item:IsA("Tool") then
+            return true
+        end
+    end
+    return false
+end
+
 -- Setup remote event handler
 local EquipItemRemote = ReplicatedStorage.AW_Inventory.Remotes.EquipItem
 
@@ -77,12 +89,20 @@ ReplicatedStorage.AW_Inventory.Remotes.HotkeyEquip.OnServerEvent:Connect(functio
     if slotData then
         -- Check if player already has this tool equipped
         local hasToolEquipped = false
+        local currentSlotNumber = nil
         if player.Character then
             for _, tool in ipairs(player.Character:GetChildren()) do
-                if tool:IsA("Tool") and tool:GetAttribute("SlotNumber") == slotNumber then
-                    tool:Destroy()
-                    hasToolEquipped = true
-                    break
+                if tool:IsA("Tool") then
+                    currentSlotNumber = tool:GetAttribute("SlotNumber")
+                    if currentSlotNumber == slotNumber then
+                        tool:Destroy()
+                        hasToolEquipped = true
+                        break
+                    elseif currentSlotNumber then
+                        -- If a different tool is equipped, ignore this request
+                        debugPrint("Player already has a tool equipped in slot %d", currentSlotNumber)
+                        return
+                    end
                 end
             end
         end
@@ -137,6 +157,17 @@ ReplicatedStorage.AW_Inventory.Remotes.HotkeyEquip.OnServerEvent:Connect(functio
         -- Give tool directly to character instead of backpack
         if player.Character then
             tool.Parent = player.Character
+            
+            -- Connect to AncestryChanged to prevent the tool from going to backpack
+            tool.AncestryChanged:Connect(function(_, newParent)
+                if newParent == player.Backpack then
+                    if player.Character then
+                        tool.Parent = player.Character
+                    else
+                        tool:Destroy()
+                    end
+                end
+            end)
         end
         debugPrint("Equipped tool to slot %d", slotNumber)
     end
@@ -183,5 +214,10 @@ local function startEquippedDebugPrints()
         end
     end)
 end
+
+--TODO: Add the equipped hotbar also in game that will be really similar to the one in the Inventory UI
+--TODO: Add a blur effect in the Inventory
+--TODO : Add a key to open Inventory UI
+--TODO : Add the possibility to also drag and drop items from the equipped slots to the inventory back
 
 startEquippedDebugPrints() 
