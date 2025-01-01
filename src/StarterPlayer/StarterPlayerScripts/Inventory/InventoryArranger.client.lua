@@ -3,32 +3,33 @@ local RunService = game:GetService("RunService")
 
 local SettingsModule = require(ReplicatedStorage.AW_Inventory.SettingsModule)
 local ViewportRemote = ReplicatedStorage.AW_Inventory.Remotes.Viewport
+local Maid = require(ReplicatedStorage.AW_Inventory.Modules.Maid)
 
 -- Function to create and setup viewport camera
 local function setupViewportCamera()
     local camera = Instance.new("Camera")
     camera.CameraType = SettingsModule.Viewport.Camera.Type
-    camera.FieldOfView = SettingsModule.Viewport.Camera.FieldOfView
+    camera.FieldOfView = 30 -- Smaller FOV for better perspective
     return camera
 end
 
--- Function to calculate optimal camera distance
-local function calculateCameraDistance(boundingSize)
+-- Function to calculate optimal camera distance and position
+local function calculateCameraPosition(boundingSize)
     local maxDimension = math.max(boundingSize.X, boundingSize.Y, boundingSize.Z)
-    local distance = (maxDimension / math.tan(math.rad(SettingsModule.Viewport.Camera.FieldOfView))) 
-        * SettingsModule.Viewport.Camera.DistanceMultiplier
-    return (maxDimension/2) + distance
+    -- Use settings for distance calculation
+    local distance = (maxDimension / math.tan(math.rad(15))) * SettingsModule.Viewport.Camera.DistanceMultiplier
+    
+    -- Use settings for camera position
+    return Vector3.new(
+        0, 
+        distance * SettingsModule.Viewport.Camera.HeightMultiplier, 
+        distance * SettingsModule.Viewport.Camera.DepthMultiplier
+    )
 end
 
--- Function to get random position for item
-local function getRandomPosition()
-    local min = SettingsModule.Viewport.Model.RandomPosition.Min
-    local max = SettingsModule.Viewport.Model.RandomPosition.Max
-    return Vector3.new(
-        math.random(min, max),
-        math.random(min, max),
-        math.random(min, max)
-    )
+-- Function to get centered position for item
+local function getCenteredPosition()
+    return Vector3.new(0, 0, 0)
 end
 
 -- Function to find and clone the view model
@@ -53,6 +54,8 @@ end
 
 -- Handle viewport updates
 ViewportRemote.OnClientEvent:Connect(function(viewportFrame, itemName)
+    -- Create new maid for this viewport
+    local maid = Maid.new()
 
     if SettingsModule.Debug.EnablePrints then
         print("DEBUG: Received viewport update for:", itemName)
@@ -75,8 +78,8 @@ ViewportRemote.OnClientEvent:Connect(function(viewportFrame, itemName)
     local viewportCamera = setupViewportCamera()
     viewportFrame.CurrentCamera = viewportCamera
     
-    -- Get random position and clone model
-    local viewportPosition = getRandomPosition()
+    -- Center the model in the viewport
+    local viewportPosition = getCenteredPosition()
     local itemClone = getViewModel(itemFolder)
     
     if not itemClone then
@@ -85,34 +88,75 @@ ViewportRemote.OnClientEvent:Connect(function(viewportFrame, itemName)
     end
     
     -- Setup model in viewport
-    itemClone:SetPrimaryPartCFrame(CFrame.new(viewportPosition))
-    itemClone.Parent = viewportFrame
-    
+    -- Add primary part check before setting CFrame
+    if not itemClone.PrimaryPart then
+        -- First try to find a part named "Handle" which is common for tools
+        local handle = itemClone:FindFirstChild("Handle")
+        if handle and handle:IsA("BasePart") then
+            itemClone.PrimaryPart = handle
+        else
+            -- If no Handle, use the first BasePart found
+            for _, part in ipairs(itemClone:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    itemClone.PrimaryPart = part
+                    break
+                end
+            end
+        end
+    end
+
+    if itemClone.PrimaryPart then
+        -- Position the model and rotate it to stand upright
+        itemClone:SetPrimaryPartCFrame(
+            CFrame.new(viewportPosition) * 
+            CFrame.Angles(math.rad(90), 0, 0) -- Rotate around X axis to stand upright
+        )
+        itemClone.Parent = viewportFrame
+    else
+        warn("Could not set PrimaryPart for model:", itemName)
+        return
+    end
+
     -- Get bounding box for camera positioning
     local boundingCFrame, boundingSize = itemClone:GetBoundingBox()
+    local cameraPosition = calculateCameraPosition(boundingSize)
     
     -- Setup rotation animation
     local rotation = 0
-    local connection = RunService.RenderStepped:Connect(function()
+    maid:GiveTask(RunService.RenderStepped:Connect(function()
         -- Only update if viewport still exists
         if not viewportFrame.Parent then
-            connection:Disconnect()
+            maid:Destroy()
             return
         end
         
-            -- Calculate camera position
-        local distance = calculateCameraDistance(boundingSize)
+        -- Keep camera fixed, looking straight at the model with slight tilt
         local cameraAngle = CFrame.Angles(
-            math.rad(SettingsModule.Viewport.Camera.InitialAngle), 
-            math.rad(rotation), 
+            math.rad(SettingsModule.Viewport.Camera.ViewAngle), -- Small tilt for perspective
+            0,
             0
         )
-        local cameraOffset = Vector3.new(0, 0, distance)
         
-        -- Update camera
-        viewportCamera.CFrame = cameraAngle * CFrame.new(viewportPosition + cameraOffset, viewportPosition)
+        -- Position camera and look at center
+        viewportCamera.CFrame = CFrame.new(cameraPosition) * cameraAngle
+        viewportCamera.Focus = CFrame.new(viewportPosition)
         
-        -- Increment rotation
-        rotation = rotation + SettingsModule.Viewport.Camera.RotationSpeed
-    end)
+        -- Rotate the model itself around its vertical axis while keeping it upright
+        if itemClone.PrimaryPart then
+            itemClone:SetPrimaryPartCFrame(
+                CFrame.new(viewportPosition) * 
+                CFrame.Angles(math.rad(90), math.rad(rotation), 0) -- Keep upright (X) while rotating around Y
+            )
+        end
+        
+        -- Increment rotation (slower rotation)
+        rotation = rotation + SettingsModule.Viewport.Camera.RotationSpeed * 0.5
+    end))
+
+    -- Clean up maid when viewport is destroyed
+    maid:GiveTask(viewportFrame.AncestryChanged:Connect(function(_, parent)
+        if not parent then
+            maid:Destroy()
+        end
+    end))
 end)

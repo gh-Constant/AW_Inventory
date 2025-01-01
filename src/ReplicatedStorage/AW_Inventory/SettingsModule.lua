@@ -50,7 +50,6 @@ SettingsModule.Paths = {
     InventoryFrame = { -- Individual parts of the inventory frame path
         Gui = "Inventory",
         Main = "Main",
-        Background = "Background",
         Container = "InventoryFrame",
         Frame = "Inventory"
     },
@@ -60,19 +59,16 @@ SettingsModule.Paths = {
 -- Viewport settings
 SettingsModule.Viewport = {
     Camera = {
-        FieldOfView = 45,
         Type = Enum.CameraType.Scriptable,
-        DistanceMultiplier = 0.75,
-        RotationSpeed = 1,
-        InitialAngle = 90 -- degrees
+        RotationSpeed = 0.5,
+        DistanceMultiplier = 0.4, -- Reduced from 0.6 to 0.4
+        HeightMultiplier = 0.2,   -- Reduced from 0.25 to 0.2
+        DepthMultiplier = 0.5,    -- Reduced from 0.7 to 0.5
+        ViewAngle = -5,          -- Changed from -20 to -5 for a more level view
     },
     Model = {
-        RandomPosition = {
-            Min = -5,
-            Max = 5
-        },
-        ViewModelPath = "ViewModel" -- Path in item folder to find the model
-    }
+        ViewModelPath = "ViewModel",
+    },
 }
 
 return SettingsModule 

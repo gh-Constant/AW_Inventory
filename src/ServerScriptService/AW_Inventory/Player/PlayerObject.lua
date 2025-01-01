@@ -108,6 +108,18 @@ function PlayerObject:unequipItem(slotId: number): boolean
 	return self.PlayerData.UnequipItem(self.player, slotId)
 end
 
+function PlayerObject:getEquipped()
+	-- Initialize equipped data if it doesn't exist
+	if not self.PlayerData.Data.Equipped then
+		self.PlayerData.Data.Equipped = {}
+	end
+	return self.PlayerData.Data.Equipped
+end
+
+function PlayerObject:setEquipped(equipped)
+	self.PlayerData.Data.Equipped = equipped
+end
+
 function PlayerObject.GetPlayerObject(player: Player)
 	return playerObjects[player]
 end

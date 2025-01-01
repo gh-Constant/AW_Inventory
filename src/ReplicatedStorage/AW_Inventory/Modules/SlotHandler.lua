@@ -264,8 +264,7 @@ function Functions.SlotHandler(plr)
 	-- Clear existing inventory slots except UIGridLayout
 	local inventoryGui = plr.PlayerGui:WaitForChild("Inventory")
 	local mainFrame = inventoryGui:WaitForChild("Main")
-	local backgroundFrame = mainFrame:WaitForChild("Background")
-	local inventoryContainer = backgroundFrame:WaitForChild("InventoryFrame")
+	local inventoryContainer = mainFrame:WaitForChild("InventoryFrame")
 	local inventoryFrame = inventoryContainer:WaitForChild("Inventory")
 	
 	if SettingsModule.Debug.ShowItemProcessing then
