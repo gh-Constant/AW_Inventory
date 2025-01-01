@@ -109,15 +109,21 @@ function PlayerObject:unequipItem(slotId: number): boolean
 end
 
 function PlayerObject:getEquipped()
+	local inventory = self:getInventory()
+	if not inventory then return {} end
+	
 	-- Initialize equipped data if it doesn't exist
-	if not self.PlayerData.Data.Equipped then
-		self.PlayerData.Data.Equipped = {}
+	if not inventory.Equipped then
+		inventory.Equipped = {}
 	end
-	return self.PlayerData.Data.Equipped
+	return inventory.Equipped
 end
 
 function PlayerObject:setEquipped(equipped)
-	self.PlayerData.Data.Equipped = equipped
+	local inventory = self:getInventory()
+	if not inventory then return end
+	
+	inventory.Equipped = equipped
 end
 
 function PlayerObject.GetPlayerObject(player: Player)

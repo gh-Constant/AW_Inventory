@@ -407,6 +407,40 @@ function Functions.SlotHandler(plr)
 		end
 	end
 	
+	-- Handle equipped items
+	local equipped = PlayerObject:getEquipped()
+	if equipped then
+		for slotNumber, itemData in pairs(equipped) do
+			local slot = mainFrame.SlotsFrame:FindFirstChild("Slot" .. slotNumber)
+			if slot then
+				-- Create frame for the equipped item
+				local frametemplate = CreateFrame.new()
+				frametemplate.Parent = slot
+				frametemplate.Name = createFrameName(itemData.name, itemData, itemData.id)
+				frametemplate.Item.Value = itemData.name
+				
+				-- Set frame to fill the slot
+				frametemplate.Size = UDim2.fromScale(1, 1)
+				frametemplate.Position = UDim2.fromScale(0, 0)
+				
+				-- Get item folder for additional data
+				local itemFolder = ItemsFolder:FindFirstChild(itemData.name)
+				if itemFolder then
+					-- Set rarity color if exists
+					if itemFolder:FindFirstChild("Rarity") then
+						setFrameGradients(frametemplate, itemFolder.Rarity.Value)
+					end
+					
+					-- Set view type
+					setViewType(frametemplate, itemFolder, plr, itemData.name)
+					
+					-- Hide quantity label for equipped items
+					frametemplate.BG.Main.Quantity.Visible = false
+				end
+			end
+		end
+	end
+	
 	-- Calculate and apply positions for all frames
 	local positions = calculateSlotPosition(frames)
 	for _, posData in ipairs(positions) do
