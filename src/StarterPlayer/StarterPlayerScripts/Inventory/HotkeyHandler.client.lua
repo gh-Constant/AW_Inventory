@@ -107,25 +107,38 @@ local function hasItemInSlot(slot)
     return false
 end
 
+-- Function to clean up slot state
+local function cleanupSlotState(slot)
+    -- Remove highlight
+    removeHighlight(slot)
+    
+    -- If this was the currently equipped slot, clear it
+    if currentlyEquippedSlot == slot then
+        currentlyEquippedSlot = nil
+    end
+    
+    -- Find and remove any equipped bool value
+    local equippedValue = slot:FindFirstChild("Equipped")
+    if equippedValue and equippedValue:IsA("BoolValue") then
+        equippedValue:Destroy()
+    end
+end
+
 -- Function to toggle highlight
 local function toggleHighlight(slot)
-    -- Don't highlight if there's no item in the slot
+    -- First check if there's actually an item in the slot
     if not hasItemInSlot(slot) then
-        if slotHighlights[slot] then
-            removeHighlight(slot)
-            currentlyEquippedSlot = nil
-        end
+        cleanupSlotState(slot)
         return false
     end
 
     if slotHighlights[slot] then
-        removeHighlight(slot)
-        currentlyEquippedSlot = nil
+        cleanupSlotState(slot)
         return false
     else
         -- Remove highlight from previously equipped slot if any
         if currentlyEquippedSlot and currentlyEquippedSlot ~= slot then
-            removeHighlight(currentlyEquippedSlot)
+            cleanupSlotState(currentlyEquippedSlot)
         end
         createHighlight(slot)
         currentlyEquippedSlot = slot
@@ -141,8 +154,9 @@ local function playHotbarEffect(slotNumber)
     local slot = hotbarSlotsFrame:FindFirstChild("Slot" .. slotNumber)
     
     if slot then
-        -- Don't do anything if there's no item in the slot
+        -- Check if there's actually an item in the slot
         if not hasItemInSlot(slot) then
+            cleanupSlotState(slot)
             return
         end
 
@@ -164,20 +178,35 @@ local function playHotbarEffect(slotNumber)
     end
 end
 
+-- Function to check and clean up all slots
+local function checkAndCleanupAllSlots()
+    local player = Players.LocalPlayer
+    local hotbarGui = player.PlayerGui:WaitForChild("Hotbar")
+    local hotbarSlotsFrame = hotbarGui:WaitForChild("Main"):WaitForChild("SlotsFrame")
+    
+    for _, slot in ipairs(hotbarSlotsFrame:GetChildren()) do
+        if slot:IsA("ImageLabel") and slot.Name:match("^Slot%d+$") then
+            if not hasItemInSlot(slot) then
+                cleanupSlotState(slot)
+            end
+        end
+    end
+end
+
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
     local slotNumber = numberKeys[input.KeyCode]
     if slotNumber then
-        -- Only send to server if we're unequipping current slot or no slot is equipped
         local player = Players.LocalPlayer
         local hotbarGui = player.PlayerGui:WaitForChild("Hotbar")
         local hotbarSlotsFrame = hotbarGui:WaitForChild("Main"):WaitForChild("SlotsFrame")
         local slot = hotbarSlotsFrame:FindFirstChild("Slot" .. slotNumber)
         
         if slot then
-            -- Don't do anything if there's no item in the slot
+            -- Check if there's actually an item in the slot
             if not hasItemInSlot(slot) then
+                cleanupSlotState(slot)
                 return
             end
 
@@ -196,4 +225,12 @@ Players.LocalPlayer.CharacterRemoving:Connect(function()
         highlight:Destroy()
     end
     slotHighlights = {}
+end)
+
+-- Periodically check and clean up slot states
+task.spawn(function()
+    while true do
+        task.wait(1)
+        checkAndCleanupAllSlots()
+    end
 end) 

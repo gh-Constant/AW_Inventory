@@ -22,8 +22,23 @@ blurEffect.Enabled = false
 blurEffect.Parent = Lighting
 
 -- Variables to track state
-local isInventoryOpen = true
+local isInventoryOpen = false
 local isTweening = false
+
+-- Store original position
+local originalPosition = mainFrame.Position
+local offscreenPosition = UDim2.new(
+    originalPosition.X.Scale, 
+    originalPosition.X.Offset,
+    -1, -- Move above screen
+    originalPosition.Y.Offset
+)
+
+-- Set initial state
+mainFrame.Position = offscreenPosition
+mainFrame.Visible = false
+hotbarGui.Enabled = true
+blurEffect.Enabled = false
 
 -- Function to toggle inventory visibility with animation
 local function toggleInventory(show)
@@ -32,36 +47,50 @@ local function toggleInventory(show)
     
     -- Create tweens
     local tweenInfo = TweenInfo.new(
-        SettingsModule.InventoryUI.TransitionTime,
-        Enum.EasingStyle.Quad,
+        0.3, -- Faster animation
+        Enum.EasingStyle.Back, -- Bouncy effect
         Enum.EasingDirection.Out
     )
     
+    -- Create position tween
+    local targetPosition = show and originalPosition or offscreenPosition
+    local positionTween = TweenService:Create(mainFrame, tweenInfo, {
+        Position = targetPosition
+    })
+    
+    -- Create blur tween
+    local blurTweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Linear)
     local targetBlurSize = show and SettingsModule.InventoryUI.BlurEffect.Size or 0
-    local blurTween = TweenService:Create(blurEffect, tweenInfo, {
+    local blurTween = TweenService:Create(blurEffect, blurTweenInfo, {
         Size = targetBlurSize
     })
     
-    -- Show/hide inventory and hotbar
+    -- Setup UI before animation starts
     if show then
-        mainFrame.Visible = true
-        hotbarGui.Enabled = false
+        -- Enable blur immediately when opening
         blurEffect.Enabled = SettingsModule.InventoryUI.BlurEffect.Enabled
+        -- Show frame but keep hotbar until animation completes
+        mainFrame.Visible = true
         -- Request inventory update from server
         UpdateInventoryRemote:FireServer()
     else
+        -- Enable hotbar immediately when closing
         hotbarGui.Enabled = true
     end
     
     -- Start tweens
+    positionTween:Play()
     blurTween:Play()
     
     -- Handle completion
-    blurTween.Completed:Connect(function()
+    positionTween.Completed:Connect(function()
         isTweening = false
         
-        -- Hide inventory after tweening if closing
-        if not show then
+        if show then
+            -- Disable hotbar after opening animation
+            hotbarGui.Enabled = false
+        else
+            -- Hide inventory and disable blur after closing animation
             mainFrame.Visible = false
             blurEffect.Enabled = false
         end
@@ -78,14 +107,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         toggleInventory(not isInventoryOpen)
     end
 end)
-
--- Initialize inventory state
-mainFrame.Visible = true
-hotbarGui.Enabled = false
-blurEffect.Size = SettingsModule.InventoryUI.BlurEffect.Size
-blurEffect.Enabled = SettingsModule.InventoryUI.BlurEffect.Enabled
--- Request initial inventory update
-UpdateInventoryRemote:FireServer()
 
 -- Clean up
 player.CharacterRemoving:Connect(function()
