@@ -18,6 +18,10 @@ local DraggableHandler = {}
 local EquipItemRemote = ReplicatedStorage.AW_Inventory.Remotes.EquipItem
 local UnequipItemRemote = ReplicatedStorage.AW_Inventory.Remotes.UnequipItem
 local SwapEquippedItemsRemote = ReplicatedStorage.AW_Inventory.Remotes.SwapEquippedItems
+local DeleteItemRemote = ReplicatedStorage.AW_Inventory.Remotes.DeleteItem
+
+-- Constants for deletion
+local DELETE_HIGHLIGHT_COLOR = Color3.new(1, 0, 0) -- Red color for delete highlight
 
 --[[
     Helper function for debug prints
@@ -49,6 +53,99 @@ local function getSlotNumber(frame)
 end
 
 --[[
+    Creates a confirmation UI for item deletion
+    @param mainFrame (Instance) - The main UI frame
+    @param itemFrame (Instance) - The frame of the item being deleted
+    @param itemName (string) - The name of the item
+    @param itemId (string) - The unique ID of the item
+    @param callback (function) - Function to call when confirmed
+    @return (Instance) - The confirmation UI frame
+]]
+local function createConfirmationUI(mainFrame, itemFrame, itemName, itemId, callback)
+    local confirmFrame = Instance.new("Frame")
+    confirmFrame.Size = UDim2.new(0, 300, 0, 150)
+    confirmFrame.Position = UDim2.new(0.5, -150, 0.5, -75)
+    confirmFrame.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    confirmFrame.BorderSizePixel = 0
+    confirmFrame.ZIndex = 9999
+    confirmFrame.Parent = mainFrame
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0.2, 0)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "Delete Item"
+    title.TextColor3 = Color3.new(1, 1, 1)
+    title.TextSize = 18
+    title.Font = Enum.Font.SourceSansBold
+    title.ZIndex = 10000
+    title.Parent = confirmFrame
+    
+    local itemInfo = Instance.new("TextLabel")
+    itemInfo.Size = UDim2.new(1, 0, 0.4, 0)
+    itemInfo.Position = UDim2.new(0, 0, 0.2, 0)
+    itemInfo.BackgroundTransparency = 1
+    itemInfo.Text = string.format("Item: %s\nID: %s", itemName, itemId)
+    itemInfo.TextColor3 = Color3.new(1, 1, 1)
+    itemInfo.TextSize = 14
+    itemInfo.ZIndex = 10000
+    itemInfo.Parent = confirmFrame
+    
+    local confirmButton = Instance.new("TextButton")
+    confirmButton.Size = UDim2.new(0.4, 0, 0.25, 0)
+    confirmButton.Position = UDim2.new(0.1, 0, 0.7, 0)
+    confirmButton.BackgroundColor3 = Color3.new(0.8, 0, 0)
+    confirmButton.Text = "Delete"
+    confirmButton.TextColor3 = Color3.new(1, 1, 1)
+    confirmButton.ZIndex = 10000
+    confirmButton.Parent = confirmFrame
+    
+    local cancelButton = Instance.new("TextButton")
+    cancelButton.Size = UDim2.new(0.4, 0, 0.25, 0)
+    cancelButton.Position = UDim2.new(0.5, 0, 0.7, 0)
+    cancelButton.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
+    cancelButton.Text = "Cancel"
+    cancelButton.TextColor3 = Color3.new(1, 1, 1)
+    cancelButton.ZIndex = 10000
+    cancelButton.Parent = confirmFrame
+    
+    confirmButton.MouseButton1Click:Connect(function()
+        callback()
+        confirmFrame:Destroy()
+    end)
+    
+    cancelButton.MouseButton1Click:Connect(function()
+        confirmFrame:Destroy()
+    end)
+    
+    return confirmFrame
+end
+
+--[[
+    Checks if a point is inside any of the given frames
+    @param point Vector2 - The point to check
+    @param frames {GuiObject} - Array of frames to check against
+    @return boolean - Whether the point is inside any of the frames
+]]
+local function isPointInFrames(point, frames)
+    for _, frame in ipairs(frames) do
+        local framePos = frame.AbsolutePosition
+        local frameSize = frame.AbsoluteSize
+        
+        -- Debug print frame bounds
+        debugPrint("Frame %s bounds: X(%d-%d) Y(%d-%d)", frame.Name,
+            framePos.X, framePos.X + frameSize.X,
+            framePos.Y, framePos.Y + frameSize.Y)
+        
+        if point.X >= framePos.X and point.X <= framePos.X + frameSize.X
+            and point.Y >= framePos.Y and point.Y <= framePos.Y + frameSize.Y then
+            return true
+        end
+    end
+    return false
+end
+
+--[[
     Sets up draggable behavior for a frame
     @param frame (Instance) - The frame to make draggable
     @param isEquippedItem (boolean) - Whether the item is currently equipped
@@ -66,22 +163,30 @@ function DraggableHandler.setupDraggable(frame, isEquippedItem, mainFrame, inven
     local originalZIndex = frame.ZIndex
     local originalSize = frame.Size
     local originalSlotNumber = isEquippedItem and getSlotNumber(originalParent) or nil
+    local originalColor = frame.BackgroundColor3
     
-    -- When dragging starts
+    -- Get item information
+    local itemName = frame:GetAttribute("ItemName") or "Unknown Item"
+    local uniqueId = frame.Name:match("_([^_]+)$") or "Unknown ID"
+    
+    -- Get the delete frame
+    local deleteFrame = mainFrame:WaitForChild("DeleteFrame")
+    
     draggableObject.Began:Connect(function(mousePosition)
+        debugPrint("Drag began at X:%d Y:%d", mousePosition.X, mousePosition.Y)
+        
         -- Calculate absolute position before reparenting
         local absolutePosition = frame.AbsolutePosition
         local absoluteSize = frame.AbsoluteSize
         
-        -- Parent to main frame for visibility outside ScrollingFrame
+        -- Parent to main frame for visibility
         frame.Parent = mainFrame
         
         -- Convert position to maintain the same screen position
-        local newPosition = UDim2.new(
+        frame.Position = UDim2.new(
             0, absolutePosition.X,
             0, absolutePosition.Y
         )
-        frame.Position = newPosition
         
         -- Convert size to maintain the same dimensions
         frame.Size = UDim2.new(
@@ -89,66 +194,71 @@ function DraggableHandler.setupDraggable(frame, isEquippedItem, mainFrame, inven
             0, absoluteSize.Y
         )
         
-        -- Make frame darker during drag
-        frame.BackgroundTransparency = originalTransparency + 0.2
-        -- Set high ZIndex to appear above other UI elements
         frame.ZIndex = 999
     end)
     
     draggableObject.Dragging:Connect(function(mousePosition)
-        local hoverInfo = SlotHighlightHandler.getHoverTarget(mousePosition, frame, slotsFrame, inventoryFrame)
+        -- Check if mouse is over the delete frame
+        local isOverDeleteFrame = isPointInFrames(mousePosition, {deleteFrame})
         
-        -- Reset all highlights first
-        SlotHighlightHandler.highlightSlot(nil)
-        inventoryFrame.BackgroundColor3 = Color3.new(1, 1, 1)
-        inventoryFrame.BackgroundTransparency = 1
-        
-        if isEquippedItem then
-            -- When dragging an equipped item
-            if hoverInfo.isOverInventory then
-                -- Highlight inventory for unequipping
-                inventoryFrame.BackgroundColor3 = Color3.new(0, 1, 0)
-                inventoryFrame.BackgroundTransparency = 0.9
-            elseif hoverInfo.isOverSlot then
-                -- Highlight slot for swapping
-                SlotHighlightHandler.highlightSlot(hoverInfo.slot)
-            end
+        if not isOverDeleteFrame then
+            frame.BackgroundColor3 = DELETE_HIGHLIGHT_COLOR
+            debugPrint("Setting delete highlight color - not over delete frame")
         else
-            -- When dragging from inventory
-            if hoverInfo.isOverSlot then
-                -- Highlight slot for equipping
-                SlotHighlightHandler.highlightSlot(hoverInfo.slot)
+            frame.BackgroundColor3 = originalColor
+            
+            local hoverInfo = SlotHighlightHandler.getHoverTarget(mousePosition, frame, slotsFrame, inventoryFrame)
+            
+            -- Reset all highlights first
+            SlotHighlightHandler.highlightSlot(nil)
+            inventoryFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+            inventoryFrame.BackgroundTransparency = 1
+            
+            if isEquippedItem then
+                if hoverInfo.isOverInventory then
+                    inventoryFrame.BackgroundColor3 = Color3.new(0, 1, 0)
+                    inventoryFrame.BackgroundTransparency = 0.9
+                elseif hoverInfo.isOverSlot then
+                    SlotHighlightHandler.highlightSlot(hoverInfo.slot)
+                end
+            else
+                if hoverInfo.isOverSlot then
+                    SlotHighlightHandler.highlightSlot(hoverInfo.slot)
+                end
             end
         end
     end)
     
     draggableObject.Ended:Connect(function(mousePosition)
-        local hoverInfo = SlotHighlightHandler.getHoverTarget(mousePosition, frame, slotsFrame, inventoryFrame)
+        -- Check if mouse is over the delete frame
+        local isOverDeleteFrame = isPointInFrames(mousePosition, {deleteFrame})
+        debugPrint("Drag ended - Over delete frame: " .. tostring(isOverDeleteFrame))
         
-        -- Reset all highlights
-        SlotHighlightHandler.highlightSlot(nil)
-        inventoryFrame.BackgroundColor3 = Color3.new(1, 1, 1)
-        inventoryFrame.BackgroundTransparency = 1
-        
-        if (hoverInfo.isOverSlot or hoverInfo.isOverInventory) and hoverInfo.distance < 50 then
-            local uniqueId = frame.Name:match("_([^_]+)$")
+        if not isOverDeleteFrame then
+            debugPrint("Showing delete confirmation for item %s (%s)", itemName, uniqueId)
+            -- Show confirmation UI
+            createConfirmationUI(mainFrame, frame, itemName, uniqueId, function()
+                debugPrint("Deleting item with ID: %s", uniqueId)
+                DeleteItemRemote:FireServer(uniqueId, isEquippedItem)
+            end)
+        else
+            local hoverInfo = SlotHighlightHandler.getHoverTarget(mousePosition, frame, slotsFrame, inventoryFrame)
             
-            if isEquippedItem then
-                if hoverInfo.isOverSlot then
-                    -- Swapping between equipped slots
-                    if hoverInfo.slotNumber ~= originalSlotNumber then
+            if (hoverInfo.isOverSlot or hoverInfo.isOverInventory) and hoverInfo.distance < 50 then
+                if isEquippedItem then
+                    if hoverInfo.isOverSlot and hoverInfo.slotNumber ~= originalSlotNumber then
                         debugPrint("Swapping items between slots %d and %d", originalSlotNumber, hoverInfo.slotNumber)
                         SwapEquippedItemsRemote:FireServer(originalSlotNumber, hoverInfo.slotNumber)
+                    elseif hoverInfo.isOverInventory then
+                        debugPrint("Unequipping item with ID: %s", uniqueId)
+                        UnequipItemRemote:FireServer(uniqueId)
                     end
                 else
-                    -- Unequipping to inventory
-                    debugPrint("Unequipping item with ID: %s", uniqueId)
-                    UnequipItemRemote:FireServer(uniqueId)
+                    if hoverInfo.isOverSlot then
+                        debugPrint("Equipping item to slot %d with ID: %s", hoverInfo.slotNumber, uniqueId)
+                        EquipItemRemote:FireServer(hoverInfo.slotNumber, uniqueId)
+                    end
                 end
-            else
-                -- Equipping from inventory to slot
-                debugPrint("Equipping item to slot %d with ID: %s", hoverInfo.slotNumber, uniqueId)
-                EquipItemRemote:FireServer(hoverInfo.slotNumber, uniqueId)
             end
         end
         
@@ -158,6 +268,7 @@ function DraggableHandler.setupDraggable(frame, isEquippedItem, mainFrame, inven
         frame.Size = originalSize
         frame.BackgroundTransparency = originalTransparency
         frame.ZIndex = originalZIndex
+        frame.BackgroundColor3 = originalColor
     end)
 end
 
