@@ -253,10 +253,4 @@ end)
 
 Players.PlayerRemoving:Connect(PlayerData.CleanupPlayer)
 
-for _, player: Player in Players:GetPlayers() do
-    if not Profiles[player] then
-        task.spawn(PlayerData.SetupPlayer, player)
-    end
-end
-
 return PlayerData

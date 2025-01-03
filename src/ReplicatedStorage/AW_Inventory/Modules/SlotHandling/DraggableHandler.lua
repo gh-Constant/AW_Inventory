@@ -53,72 +53,73 @@ local function getSlotNumber(frame)
 end
 
 --[[
-    Creates a confirmation UI for item deletion
+    Gets the item name from a frame by checking various possible sources
+    @param frame Instance - The frame to get the name from
+    @return string - The item name
+]]
+local function getItemName(frame)
+    -- First try to get from Item StringValue
+    local itemValue = frame:FindFirstChild("Item")
+    if itemValue and itemValue:IsA("StringValue") then
+        return itemValue.Value
+    end
+    
+    -- If no StringValue, get from frame name (everything before the underscore)
+    local frameName = frame.Name
+    local itemName = frameName:match("^(.-)_")
+    if itemName then
+        return itemName
+    end
+    
+    -- Fallback to Unknown Item if no pattern match
+    return "Unknown Item"
+end
+
+--[[
+    Shows the confirmation UI for item deletion
     @param mainFrame (Instance) - The main UI frame
-    @param itemFrame (Instance) - The frame of the item being deleted
     @param itemName (string) - The name of the item
     @param itemId (string) - The unique ID of the item
     @param callback (function) - Function to call when confirmed
-    @return (Instance) - The confirmation UI frame
 ]]
-local function createConfirmationUI(mainFrame, itemFrame, itemName, itemId, callback)
-    local confirmFrame = Instance.new("Frame")
-    confirmFrame.Size = UDim2.new(0, 300, 0, 150)
-    confirmFrame.Position = UDim2.new(0.5, -150, 0.5, -75)
-    confirmFrame.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-    confirmFrame.BorderSizePixel = 0
-    confirmFrame.ZIndex = 9999
-    confirmFrame.Parent = mainFrame
+local function showConfirmationUI(mainFrame, itemName, itemId, callback)
+    local confirmScreen = mainFrame:WaitForChild("ConfirmationScreen")
+    local background = confirmScreen:WaitForChild("Background")
+    local buttons = background:WaitForChild("Buttons")
+    local destroyText = background:WaitForChild("DestroyText")
     
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0.2, 0)
-    title.Position = UDim2.new(0, 0, 0, 0)
-    title.BackgroundTransparency = 1
-    title.Text = "Delete Item"
-    title.TextColor3 = Color3.new(1, 1, 1)
-    title.TextSize = 18
-    title.Font = Enum.Font.SourceSansBold
-    title.ZIndex = 10000
-    title.Parent = confirmFrame
+    -- Set the text
+    destroyText.Text = string.format("Are you sure you want to destroy:\n\n%s\nID: %s", itemName, itemId)
     
-    local itemInfo = Instance.new("TextLabel")
-    itemInfo.Size = UDim2.new(1, 0, 0.4, 0)
-    itemInfo.Position = UDim2.new(0, 0, 0.2, 0)
-    itemInfo.BackgroundTransparency = 1
-    itemInfo.Text = string.format("Item: %s\nID: %s", itemName, itemId)
-    itemInfo.TextColor3 = Color3.new(1, 1, 1)
-    itemInfo.TextSize = 14
-    itemInfo.ZIndex = 10000
-    itemInfo.Parent = confirmFrame
+    -- Show the confirmation screen
+    confirmScreen.Visible = true
     
-    local confirmButton = Instance.new("TextButton")
-    confirmButton.Size = UDim2.new(0.4, 0, 0.25, 0)
-    confirmButton.Position = UDim2.new(0.1, 0, 0.7, 0)
-    confirmButton.BackgroundColor3 = Color3.new(0.8, 0, 0)
-    confirmButton.Text = "Delete"
-    confirmButton.TextColor3 = Color3.new(1, 1, 1)
-    confirmButton.ZIndex = 10000
-    confirmButton.Parent = confirmFrame
+    -- Connect button events
+    local destroyButton = buttons:WaitForChild("Destroy")
+    local cancelButton = buttons:WaitForChild("Cancel")
     
-    local cancelButton = Instance.new("TextButton")
-    cancelButton.Size = UDim2.new(0.4, 0, 0.25, 0)
-    cancelButton.Position = UDim2.new(0.5, 0, 0.7, 0)
-    cancelButton.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
-    cancelButton.Text = "Cancel"
-    cancelButton.TextColor3 = Color3.new(1, 1, 1)
-    cancelButton.ZIndex = 10000
-    cancelButton.Parent = confirmFrame
+    -- Store connections to disconnect them later
+    local destroyConnection
+    local cancelConnection
     
-    confirmButton.MouseButton1Click:Connect(function()
+    local function cleanup()
+        confirmScreen.Visible = false
+        if destroyConnection then
+            destroyConnection:Disconnect()
+        end
+        if cancelConnection then
+            cancelConnection:Disconnect()
+        end
+    end
+    
+    destroyConnection = destroyButton.MouseButton1Click:Connect(function()
+        cleanup()
         callback()
-        confirmFrame:Destroy()
     end)
     
-    cancelButton.MouseButton1Click:Connect(function()
-        confirmFrame:Destroy()
+    cancelConnection = cancelButton.MouseButton1Click:Connect(function()
+        cleanup()
     end)
-    
-    return confirmFrame
 end
 
 --[[
@@ -166,7 +167,7 @@ function DraggableHandler.setupDraggable(frame, isEquippedItem, mainFrame, inven
     local originalColor = frame.BackgroundColor3
     
     -- Get item information
-    local itemName = frame:GetAttribute("ItemName") or "Unknown Item"
+    local itemName = getItemName(frame)
     local uniqueId = frame.Name:match("_([^_]+)$") or "Unknown ID"
     
     -- Get the delete frame
@@ -237,7 +238,7 @@ function DraggableHandler.setupDraggable(frame, isEquippedItem, mainFrame, inven
         if not isOverDeleteFrame then
             debugPrint("Showing delete confirmation for item %s (%s)", itemName, uniqueId)
             -- Show confirmation UI
-            createConfirmationUI(mainFrame, frame, itemName, uniqueId, function()
+            showConfirmationUI(mainFrame, itemName, uniqueId, function()
                 debugPrint("Deleting item with ID: %s", uniqueId)
                 DeleteItemRemote:FireServer(uniqueId, isEquippedItem)
             end)
@@ -269,6 +270,13 @@ function DraggableHandler.setupDraggable(frame, isEquippedItem, mainFrame, inven
         frame.BackgroundTransparency = originalTransparency
         frame.ZIndex = originalZIndex
         frame.BackgroundColor3 = originalColor
+
+        -- Reset inventory frame highlight
+        inventoryFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+        inventoryFrame.BackgroundTransparency = 1
+
+        -- Reset slot highlights
+        SlotHighlightHandler.highlightSlot(nil)
     end)
 end
 

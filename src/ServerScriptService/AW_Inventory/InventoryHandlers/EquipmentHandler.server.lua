@@ -28,6 +28,8 @@ local SwapEquippedItemsRemote = RemotesFolder:FindFirstChild("SwapEquippedItems"
 SwapEquippedItemsRemote.Name = "SwapEquippedItems"
 local HotkeyEquipRemote = RemotesFolder:FindFirstChild("HotkeyEquip") or Instance.new("RemoteEvent", RemotesFolder)
 HotkeyEquipRemote.Name = "HotkeyEquip"
+local DeleteItemRemote = RemotesFolder:FindFirstChild("DeleteItem") or Instance.new("RemoteEvent", RemotesFolder)
+DeleteItemRemote.Name = "DeleteItem"
 
 -- Module table
 local EquipmentHandler = {}
@@ -348,11 +350,79 @@ function EquipmentHandler.HandleHotkeyEquip(player: Player, slotNumber: number)
     end
 end
 
+--[[
+    Handles deleting an item from inventory or equipped slots
+    @param player Player -- The player deleting the item
+    @param itemId string -- The unique ID of the item to delete
+    @param isEquipped boolean -- Whether the item is currently equipped
+]]
+function EquipmentHandler.HandleDelete(player: Player, itemId: string, isEquipped: boolean)
+    debugPrint("Player %s attempting to delete item %s (equipped: %s)", player.Name, itemId, tostring(isEquipped))
+    
+    local PlayerObject = PlayerObjectModule.GetPlayerObject(player)
+    if not PlayerObject then return end
+    
+    if isEquipped then
+        -- Handle equipped item deletion
+        local equipped = PlayerObject:getEquipped()
+        local slotToRemove = nil
+        
+        -- Find which slot has this item
+        for slotNumber, data in pairs(equipped) do
+            if data.id == itemId then
+                slotToRemove = slotNumber
+                break
+            end
+        end
+        
+        if slotToRemove then
+            -- First, unequip from character if it's being held
+            if player.Character then
+                for _, tool in ipairs(player.Character:GetChildren()) do
+                    if tool:IsA("Tool") and tool:GetAttribute("ItemId") == itemId then
+                        tool:Destroy()
+                        break
+                    end
+                end
+            end
+            
+            -- Also check backpack
+            if player.Backpack then
+                for _, tool in ipairs(player.Backpack:GetChildren()) do
+                    if tool:IsA("Tool") and tool:GetAttribute("ItemId") == itemId then
+                        tool:Destroy()
+                        break
+                    end
+                end
+            end
+            
+            -- Remove from equipped slots
+            equipped[slotToRemove] = nil
+            PlayerObject:setEquipped(equipped)
+            debugPrint("Removed equipped item from slot %s", tostring(slotToRemove))
+        end
+    else
+        -- Handle inventory item deletion
+        if PlayerObject:removeItemFromInventory(itemId) then
+            debugPrint("Successfully removed item from inventory")
+        else
+            debugPrint("Failed to remove item from inventory")
+            return
+        end
+    end
+    
+    -- Update UI
+    SlotHandler.SlotHandler(player)
+    
+    debugPrint("Successfully deleted item %s", itemId)
+end
+
 -- Connect remote events
 EquipItemRemote.OnServerEvent:Connect(EquipmentHandler.HandleEquip)
 UnequipItemRemote.OnServerEvent:Connect(EquipmentHandler.HandleUnequip)
 SwapEquippedItemsRemote.OnServerEvent:Connect(EquipmentHandler.HandleSwap)
 HotkeyEquipRemote.OnServerEvent:Connect(EquipmentHandler.HandleHotkeyEquip)
+DeleteItemRemote.OnServerEvent:Connect(EquipmentHandler.HandleDelete)
 
 -- Handle saving equipped items when player leaves
 Players.PlayerRemoving:Connect(function(player: Player)
