@@ -1,5 +1,6 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local SlotHandler = require(ReplicatedStorage.AW_Inventory.Modules.SlotHandler)
+local SlotHandler = require(game:GetService("ServerScriptService").AW_Inventory.UIHandler.showInventory)
+
 
 -- Get the remote event
 local UpdateInventoryRemote = ReplicatedStorage.AW_Inventory.Remotes.UpdateInventory

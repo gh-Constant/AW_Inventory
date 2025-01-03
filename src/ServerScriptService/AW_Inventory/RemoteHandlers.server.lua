@@ -1,6 +1,6 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local SlotHandler = require(ReplicatedStorage.AW_Inventory.Modules.SlotHandler)
+local SlotHandler = require(game:GetService("ServerScriptService").AW_Inventory.UIHandler.showInventory)
 local PlayerObject = require(script.Parent.Player.PlayerObject)
 local ItemModule = require(ReplicatedStorage.AW_Inventory.Modules.ItemModule)
 

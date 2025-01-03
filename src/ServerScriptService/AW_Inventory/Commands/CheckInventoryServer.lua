@@ -1,6 +1,5 @@
 local PlayerObject = require(script.Parent.Parent.Player.PlayerObject)
 local ItemModule = require(game.ReplicatedStorage.AW_Inventory.Modules.ItemModule)
-local SlotHandler = require(game.ReplicatedStorage.AW_Inventory.Modules.SlotHandler)
 local SettingsModule = require(game.ReplicatedStorage.AW_Inventory.SettingsModule)
 
 -- Helper function to format tables
@@ -30,8 +29,6 @@ return function(context, player)
         return "Inventory not found"
     end
 
-    -- Execute the slot handler functionality without prints
-    SlotHandler.SlotHandler(player)
 
     -- If prints are disabled, return without output
     if not SettingsModule.Debug.EnablePrints or not SettingsModule.Debug.Commands.CheckInventory.EnablePrints then

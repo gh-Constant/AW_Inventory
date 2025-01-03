@@ -3,7 +3,7 @@ local Players = game:GetService("Players")
 
 local PlayerObjectModule = require(script.Parent.Player.PlayerObject)
 local SettingsModule = require(ReplicatedStorage.AW_Inventory.SettingsModule)
-local SlotHandler = require(ReplicatedStorage.AW_Inventory.Modules.SlotHandler)
+local SlotHandler = require(game:GetService("ServerScriptService").AW_Inventory.UIHandler.showInventory)
 
 -- Helper function for debug prints
 local function debugPrint(message, ...)
