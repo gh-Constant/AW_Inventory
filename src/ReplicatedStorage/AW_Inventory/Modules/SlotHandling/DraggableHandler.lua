@@ -94,52 +94,49 @@ function DraggableHandler.setupDraggable(frame, isEquippedItem, mainFrame, inven
     end)
     
     draggableObject.Dragging:Connect(function(mousePosition)
-        -- Check closest slot or inventory frame based on where the item came from
-        local targetContainer = isEquippedItem and inventoryFrame or slotsFrame
-        local closest, distance = SlotHighlightHandler.getClosestSlot(mousePosition, frame, targetContainer, slotsFrame, inventoryFrame)
+        local hoverInfo = SlotHighlightHandler.getHoverTarget(mousePosition, frame, slotsFrame, inventoryFrame)
         
-        if closest and distance < 50 then
-            if isEquippedItem then
-                -- Check if we're hovering over another equipped slot or inventory
-                if closest.Parent == slotsFrame then
-                    -- Highlight the equipped slot for swapping
-                    SlotHighlightHandler.highlightSlot(closest)
-                else
-                    -- When dragging to inventory, highlight the inventory frame
-                    inventoryFrame.BackgroundColor3 = Color3.new(0, 1, 0)
-                    inventoryFrame.BackgroundTransparency = 0.9
-                end
-            else
-                -- When dragging from inventory to slots, highlight the slot
-                SlotHighlightHandler.highlightSlot(closest)
-            end
-        else
-            -- Reset highlights
-            SlotHighlightHandler.highlightSlot(nil)
-            inventoryFrame.BackgroundColor3 = Color3.new(1, 1, 1)
-            inventoryFrame.BackgroundTransparency = 1
-        end
-    end)
-    
-    draggableObject.Ended:Connect(function(mousePosition)
-        -- Reset highlights
+        -- Reset all highlights first
         SlotHighlightHandler.highlightSlot(nil)
         inventoryFrame.BackgroundColor3 = Color3.new(1, 1, 1)
         inventoryFrame.BackgroundTransparency = 1
         
-        local targetContainer = isEquippedItem and inventoryFrame or slotsFrame
-        local closest, distance, slotNumber = SlotHighlightHandler.getClosestSlot(mousePosition, frame, targetContainer, slotsFrame, inventoryFrame)
+        if isEquippedItem then
+            -- When dragging an equipped item
+            if hoverInfo.isOverInventory then
+                -- Highlight inventory for unequipping
+                inventoryFrame.BackgroundColor3 = Color3.new(0, 1, 0)
+                inventoryFrame.BackgroundTransparency = 0.9
+            elseif hoverInfo.isOverSlot then
+                -- Highlight slot for swapping
+                SlotHighlightHandler.highlightSlot(hoverInfo.slot)
+            end
+        else
+            -- When dragging from inventory
+            if hoverInfo.isOverSlot then
+                -- Highlight slot for equipping
+                SlotHighlightHandler.highlightSlot(hoverInfo.slot)
+            end
+        end
+    end)
+    
+    draggableObject.Ended:Connect(function(mousePosition)
+        local hoverInfo = SlotHighlightHandler.getHoverTarget(mousePosition, frame, slotsFrame, inventoryFrame)
         
-        if closest and distance < 50 then
+        -- Reset all highlights
+        SlotHighlightHandler.highlightSlot(nil)
+        inventoryFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+        inventoryFrame.BackgroundTransparency = 1
+        
+        if (hoverInfo.isOverSlot or hoverInfo.isOverInventory) and hoverInfo.distance < 50 then
             local uniqueId = frame.Name:match("_([^_]+)$")
             
             if isEquippedItem then
-                if closest.Parent == slotsFrame then
+                if hoverInfo.isOverSlot then
                     -- Swapping between equipped slots
-                    local targetSlotNumber = getSlotNumber(closest)
-                    if targetSlotNumber ~= originalSlotNumber then
-                        debugPrint("Swapping items between slots %d and %d", originalSlotNumber, targetSlotNumber)
-                        SwapEquippedItemsRemote:FireServer(originalSlotNumber, targetSlotNumber)
+                    if hoverInfo.slotNumber ~= originalSlotNumber then
+                        debugPrint("Swapping items between slots %d and %d", originalSlotNumber, hoverInfo.slotNumber)
+                        SwapEquippedItemsRemote:FireServer(originalSlotNumber, hoverInfo.slotNumber)
                     end
                 else
                     -- Unequipping to inventory
@@ -148,8 +145,8 @@ function DraggableHandler.setupDraggable(frame, isEquippedItem, mainFrame, inven
                 end
             else
                 -- Equipping from inventory to slot
-                debugPrint("Equipping item to slot %d with ID: %s", slotNumber, uniqueId)
-                EquipItemRemote:FireServer(slotNumber, uniqueId)
+                debugPrint("Equipping item to slot %d with ID: %s", hoverInfo.slotNumber, uniqueId)
+                EquipItemRemote:FireServer(hoverInfo.slotNumber, uniqueId)
             end
         end
         
