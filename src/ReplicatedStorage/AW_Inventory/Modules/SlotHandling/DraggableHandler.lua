@@ -17,7 +17,7 @@ local DraggableHandler = {}
 -- Get the remotes
 local EquipItemRemote = ReplicatedStorage.AW_Inventory.Remotes.EquipItem
 local UnequipItemRemote = ReplicatedStorage.AW_Inventory.Remotes.UnequipItem
-local SwapEquippedItemsRemote = ReplicatedStorage.AW_Inventory.Remotes.SwapEquipped
+local SwapEquippedItemsRemote = ReplicatedStorage.AW_Inventory.Remotes.SwapEquippedItems
 
 --[[
     Helper function for debug prints
@@ -26,7 +26,13 @@ local SwapEquippedItemsRemote = ReplicatedStorage.AW_Inventory.Remotes.SwapEquip
 ]]
 local function debugPrint(message, ...)
     if not SettingsModule.Debug.EnablePrints then return end
-    print(string.format("[DraggableHandler] " .. message, ...))
+    local args = {...}
+    local success, result = pcall(function()
+        return string.format(message, unpack(args))
+    end)
+    if success then
+        print("[DraggableHandler] " .. result)
+    end
 end
 
 --[[
@@ -51,8 +57,6 @@ end
     @param slotsFrame (Instance) - The slots container frame
 ]]
 function DraggableHandler.setupDraggable(frame, isEquippedItem, mainFrame, inventoryFrame, slotsFrame)
-    debugPrint("Setting up draggable for frame: %s (Equipped: %s)", frame.Name, tostring(isEquippedItem))
-    
     local draggableObject = Draggable.new(frame)
     draggableObject:IncludeDescendants()
     
@@ -65,8 +69,6 @@ function DraggableHandler.setupDraggable(frame, isEquippedItem, mainFrame, inven
     
     -- When dragging starts
     draggableObject.Began:Connect(function(mousePosition)
-        debugPrint("Started dragging frame: %s", frame.Name)
-        
         -- Calculate absolute position before reparenting
         local absolutePosition = frame.AbsolutePosition
         local absoluteSize = frame.AbsoluteSize
