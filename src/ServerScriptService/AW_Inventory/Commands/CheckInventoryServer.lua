@@ -1,6 +1,12 @@
 local PlayerObject = require(script.Parent.Parent.Player.PlayerObject)
 local ItemModule = require(game.ReplicatedStorage.AW_Inventory.Modules.ItemModule)
 local SettingsModule = require(game.ReplicatedStorage.AW_Inventory.SettingsModule)
+local SlotHandler = require(game.ReplicatedStorage.AW_Inventory.Modules.SlotHandling.SlotHighlightHandler)
+
+-- Helper function to get slot name
+local function getSlotName(slotId)
+    return "Slot " .. tostring(slotId)
+end
 
 -- Helper function to format tables
 local function formatTable(tbl, indent)
@@ -78,7 +84,7 @@ return function(context, player)
     output ..= "\n⚔️ Equipped Items:\n"
     for slotId, itemId in pairs(inventory.Equipped) do
         local itemData = inventory.Items[itemId]
-        local slotName = SlotHandler.GetSlotName(slotId)
+        local slotName = getSlotName(slotId)
         
         if itemData then
             if SettingsModule.Debug.Commands.CheckInventory.DetailedPrints then
