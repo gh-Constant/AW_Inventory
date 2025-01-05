@@ -13,11 +13,51 @@ local DebugManager = require(script.Parent.DebugManager)
 
 local Functions = {}
 
+-- Cache for UI elements and throttling
+local UICache = {}
+local LastUpdateTime = {}
+local THROTTLE_TIME = 0.1 -- 100ms throttle
+
+-- Initialize cache for a player
+local function initializeCache(plr)
+	if not UICache[plr] then
+		local inventoryGui = plr.PlayerGui:WaitForChild("Inventory")
+		local mainFrame = inventoryGui:WaitForChild("Main")
+		local inventoryContainer = mainFrame:WaitForChild("InventoryFrame")
+		local inventoryFrame = inventoryContainer:WaitForChild("Inventory")
+		
+		UICache[plr] = {
+			inventoryGui = inventoryGui,
+			mainFrame = mainFrame,
+			inventoryContainer = inventoryContainer,
+			inventoryFrame = inventoryFrame
+		}
+	end
+	return UICache[plr]
+end
+
+-- Cleanup cache when player leaves
+game.Players.PlayerRemoving:Connect(function(plr)
+	UICache[plr] = nil
+	LastUpdateTime[plr] = nil
+end)
+
 function Functions.SlotHandler(plr)
+	-- Throttle check
+	local currentTime = tick()
+	if LastUpdateTime[plr] and currentTime - LastUpdateTime[plr] < THROTTLE_TIME then
+		return -- Skip update if too soon
+	end
+	LastUpdateTime[plr] = currentTime
+
+	if not SettingsModule.Debug.EnablePrints then
+		DebugManager.disable() -- Temporarily disable debug logging in production
+	end
+	
 	DebugManager.printItemProcessing("Starting SlotHandler for player: %s", plr.Name)
 	
 	local PlayerObject = PlayerObjectModule.GetPlayerObject(plr)
-	DebugManager.printItemProcessing("PlayerData module loaded")
+	if not PlayerObject then return end
 	
 	-- Get player's inventory data
 	local inventory = PlayerObject:getInventory()
@@ -25,64 +65,95 @@ function Functions.SlotHandler(plr)
 		DebugManager.warn("No inventory data found for player: %s", plr.Name)
 		return 
 	end
-	DebugManager.printItemProcessing("Got inventory data")
 	
-	-- Clear existing inventory slots
-	local inventoryGui = plr.PlayerGui:WaitForChild("Inventory")
-	local mainFrame = inventoryGui:WaitForChild("Main")
-	local inventoryContainer = mainFrame:WaitForChild("InventoryFrame")
-	local inventoryFrame = inventoryContainer:WaitForChild("Inventory")
+	-- Get cached UI elements
+	local cache = initializeCache(plr)
+	local inventoryFrame = cache.inventoryFrame
 	
+	-- Batch remove existing frames
+	local toRemove = {}
 	for _, b in pairs(inventoryFrame:GetChildren()) do
 		if not b:IsA("UIGridLayout") then
-			b:Destroy()
+			table.insert(toRemove, b)
 		end
 	end
-	DebugManager.printItemProcessing("Cleared existing inventory slots")
+	for _, frame in ipairs(toRemove) do
+		frame:Destroy()
+	end
 	
-	local frames = {} -- Store frames for 	positioning
+	-- Pre-allocate frames table with estimated size
+	local frames = table.create(#inventory.Items)
 	local nbr = 1
 	
+	-- Batch process items
 	if SettingsModule.ShowQuantity then
-		-- Process grouped items
 		local groupedItems = ItemGrouper.groupItems(inventory)
+		local batchSize = 10
 		
-		for _, group in ipairs(groupedItems) do
-			local itemData = group.data
-			DebugManager.printItemProcessing("Processing item group: %s #Items: %d", itemData.name, #group.ids)
+		for i = 1, #groupedItems, batchSize do
+			local batch = {}
+			for j = i, math.min(i + batchSize - 1, #groupedItems) do
+				local group = groupedItems[j]
+				local itemData = group.data
+				
+				if ItemsFolder:FindFirstChild(itemData.name) then
+					table.insert(batch, {
+						itemData = itemData,
+						itemFolder = ItemsFolder[itemData.name],
+						ids = group.ids,
+						quantity = #group.ids
+					})
+				end
+			end
 			
-			if ItemsFolder:FindFirstChild(itemData.name) then
-				local itemFolder = ItemsFolder[itemData.name]
-				local frame = FrameManager.createInventoryFrame(itemData.name, itemData, group.ids[1], itemFolder, plr, nbr)
+			-- Process batch
+			for _, item in ipairs(batch) do
+				local frame = FrameManager.createInventoryFrame(
+					item.itemData.name,
+					item.itemData,
+					item.ids[1],
+					item.itemFolder,
+					plr,
+					nbr
+				)
 				frame.Parent = inventoryFrame
-				frame.BG.Main.Quantity.Text = tostring(#group.ids)
+				frame.BG.Main.Quantity.Text = tostring(item.quantity)
 				
 				table.insert(frames, frame)
 				nbr = nbr + 1
-				DebugManager.printItemProcessing("Finished processing item group: %s", itemData.name)
-			else
-				DebugManager.warn("Item not configured in ItemsFolder: %s", itemData.name)
 			end
 		end
 	else
-		-- Process individual items
 		local items = ItemGrouper.getUngroupedItems(inventory)
+		local batchSize = 10
 		
-		for _, item in ipairs(items) do
-			local itemName = item.data.name
-			DebugManager.printItemProcessing("Processing item: %s ID: %s", itemName, item.id)
+		for i = 1, #items, batchSize do
+			local batch = {}
+			for j = i, math.min(i + batchSize - 1, #items) do
+				local item = items[j]
+				if ItemsFolder:FindFirstChild(item.data.name) then
+					table.insert(batch, {
+						item = item,
+						itemFolder = ItemsFolder[item.data.name]
+					})
+				end
+			end
 			
-			if ItemsFolder:FindFirstChild(itemName) then
-				local itemFolder = ItemsFolder[itemName]
-				local frame = FrameManager.createInventoryFrame(itemName, item.data, item.id, itemFolder, plr, nbr)
+			-- Process batch
+			for _, data in ipairs(batch) do
+				local frame = FrameManager.createInventoryFrame(
+					data.item.data.name,
+					data.item.data,
+					data.item.id,
+					data.itemFolder,
+					plr,
+					nbr
+				)
 				frame.Parent = inventoryFrame
 				frame.BG.Main.Quantity.Visible = false
 				
 				table.insert(frames, frame)
 				nbr = nbr + 1
-				DebugManager.printItemProcessing("Finished processing item: %s", itemName)
-			else
-				DebugManager.warn("Item not configured in ItemsFolder: %s", itemName)
 			end
 		end
 	end
@@ -91,12 +162,16 @@ function Functions.SlotHandler(plr)
 	local equipped = PlayerObject:getEquipped()
 	EquipmentManager.handleEquippedItems(plr, equipped, ItemsFolder)
 	
-	-- Calculate and apply positions for all frames
+	-- Batch update positions
 	local positions = GridManager.calculateSlotPositions(frames)
 	for _, posData in ipairs(positions) do
 		local frame = posData.frame
 		local pos = posData.position
 		frame.Position = UDim2.new(pos.X, 0, pos.Y, 0)
+	end
+	
+	if not SettingsModule.Debug.EnablePrints then
+		DebugManager.enable() -- Re-enable debug logging
 	end
 	
 	DebugManager.printItemProcessing("SlotHandler completed for player: %s", plr.Name)
