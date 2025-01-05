@@ -1,7 +1,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local UIEffects = require(ReplicatedStorage.AW_Inventory.Modules.UIEffects)
+local UIEffects = require(script.Parent.UIEffects)
 local SettingsModule = require(ReplicatedStorage.AW_Inventory.SettingsModule)
 
 local HotkeyManager = {}

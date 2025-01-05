@@ -2,7 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local SettingsModule = require(ReplicatedStorage.AW_Inventory.SettingsModule)
-local Maid = require(ReplicatedStorage.AW_Inventory.Modules.Maid)
+local Maid = require(script.Parent.Parent.Maid)
 
 local ViewportHandler = {}
 

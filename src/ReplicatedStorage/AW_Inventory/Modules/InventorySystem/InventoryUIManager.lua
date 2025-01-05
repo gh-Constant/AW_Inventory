@@ -3,7 +3,7 @@ local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local SettingsModule = require(ReplicatedStorage.AW_Inventory.SettingsModule)
-local UIEffects = require(ReplicatedStorage.AW_Inventory.Modules.UIEffects)
+local UIEffects = require(script.Parent.UIEffects)
 
 local InventoryUIManager = {}
 
